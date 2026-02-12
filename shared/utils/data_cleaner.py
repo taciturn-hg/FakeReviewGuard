@@ -23,7 +23,13 @@ def load_and_sample(sample_size=2000, output_file='sample_reviews_for_annotation
                 df = pd.read_csv(f, encoding=encoding)
                 # Keep only relevant columns
                 if 'extract' in df.columns and 'score' in df.columns:
-                    df = df[['extract', 'score', 'source', 'date', 'product']]
+                    # 确保所有需要的列都存在，不存在的填充默认值
+                    required_cols = ['extract', 'score', 'source', 'date', 'product']
+                    for col in required_cols:
+                        if col not in df.columns:
+                            df[col] = 'Unknown'
+                            
+                    df = df[required_cols]
                     dfs.append(df)
                 break
             except UnicodeDecodeError:
