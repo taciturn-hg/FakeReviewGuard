@@ -111,12 +111,12 @@ def train_fake_review_detector():
         
         # Calculate training loss
         y_train_prob = model.predict_proba(X_train_final)
-        train_loss = log_loss(y_train, y_train_prob)
+        train_loss = log_loss(y_train, y_train_prob, labels=classes)
         train_losses.append(train_loss)
         
         # Calculate validation loss
         y_test_prob = model.predict_proba(X_test_final)
-        val_loss = log_loss(y_test, y_test_prob)
+        val_loss = log_loss(y_test, y_test_prob, labels=classes)
         val_losses.append(val_loss)
         
         if (epoch + 1) % 5 == 0:
