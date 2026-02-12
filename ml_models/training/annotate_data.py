@@ -3,15 +3,18 @@ import json
 import os
 import time
 from openai import OpenAI
+from dotenv import load_dotenv
 
-# NOTE: You need to install the openai library: pip install openai
-# NOTE: Replace 'YOUR_DEEPSEEK_API_KEY' with your actual API key
-API_KEY = "sk-afc7316c31784ae5b7db844c482410be"
-BASE_URL = "https://api.deepseek.com" # Verify the correct DeepSeek API endpoint
+# 加载 .env 文件中的环境变量
+load_dotenv()
+
+API_KEY = os.getenv("DEEPSEEK_API_KEY")
+BASE_URL = "https://api.deepseek.com"
 
 def get_deepseek_client():
-    if API_KEY == "YOUR_DEEPSEEK_API_KEY":
-        print("Please set your DeepSeek API Key in the script.")
+    if not API_KEY:
+        print("Error: DEEPSEEK_API_KEY not found in environment variables.")
+        print("Please create a .env file with DEEPSEEK_API_KEY=your_key")
         return None
     return OpenAI(api_key=API_KEY, base_url=BASE_URL)
 
@@ -46,24 +49,40 @@ def annotate_review(client, text, score, product):
     """
     
     try:
-        response = client.chat.completions.create(
-            model="deepseek-chat", # or deepseek-reasoner
-            messages=[
-                {"role": "system", "content": "You are a helpful data annotation assistant."},
-                {"role": "user", "content": prompt}
-            ],
-            response_format={ "type": "json_object" },
-            temperature=0.1
-        )
-        content = response.choices[0].message.content
-        return json.loads(content)
+        # 简单的重试机制
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                response = client.chat.completions.create(
+                    model="deepseek-chat", # or deepseek-reasoner
+                    messages=[
+                        {"role": "system", "content": "You are a helpful data annotation assistant."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    response_format={ "type": "json_object" },
+                    temperature=0.1
+                )
+                content = response.choices[0].message.content
+                # 清洗可能存在的 Markdown 标记
+                content = content.replace('```json', '').replace('```', '').strip()
+                return json.loads(content)
+            except Exception as e:
+                if attempt == max_retries - 1:
+                    raise e
+                print(f"Attempt {attempt+1} failed: {e}. Retrying...")
+                time.sleep(2)
+                
     except Exception as e:
         print(f"Error annotating: {e}")
         return {"label": "Error", "reasoning": str(e)}
 
 def main():
-    input_file = 'sample_reviews_for_annotation.csv'
-    output_file = 'labeled_reviews.csv'
+    # 使用绝对路径以确保在任何目录运行都能找到文件
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    data_dir = os.path.join(base_dir, '..', '..', 'data', 'processed')
+    
+    input_file = os.path.join(data_dir, 'sample_reviews_for_annotation.csv')
+    output_file = os.path.join(data_dir, 'labeled_reviews.csv')
     
     if not os.path.exists(input_file):
         print(f"File {input_file} not found. Run preprocess.py first.")
@@ -95,9 +114,19 @@ def main():
         df['label'] = labels
         df['reasoning'] = reasonings
 
-    df.to_csv(output_file, index=False)
-    print(f"\nAnnotation complete. Saved to {output_file}")
-    print(df[['extract', 'label', 'reasoning']].head())
+    # 过滤掉标注失败的数据
+    valid_df = df[df['label'] != 'Error']
+    error_df = df[df['label'] == 'Error']
+    
+    if not error_df.empty:
+        print(f"\nWarning: {len(error_df)} reviews failed annotation.")
+        error_file = os.path.join(data_dir, 'annotation_errors.csv')
+        error_df.to_csv(error_file, index=False)
+        print(f"Errors saved to {error_file}")
+
+    valid_df.to_csv(output_file, index=False)
+    print(f"\nAnnotation complete. Saved {len(valid_df)} reviews to {output_file}")
+    print(valid_df[['extract', 'label', 'reasoning']].head())
 
 if __name__ == "__main__":
     main()

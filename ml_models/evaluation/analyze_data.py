@@ -3,7 +3,14 @@ import glob
 import os
 
 def analyze_files():
-    files = glob.glob('*.csv')
+    # 使用绝对路径定位数据目录
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    raw_data_dir = os.path.join(base_dir, '..', '..', 'data', 'raw')
+    
+    # 搜索 raw 目录下的 csv 文件
+    search_pattern = os.path.join(raw_data_dir, '*.csv')
+    files = glob.glob(search_pattern)
+    print(f"Searching in: {search_pattern}")
     print(f"Found files: {files}")
     
     total_rows = 0

@@ -10,24 +10,17 @@ from sklearn.metrics import classification_report, confusion_matrix, log_loss
 from scipy.sparse import hstack
 import joblib
 import os
-import jieba
-from snownlp import SnowNLP
+import sys
 
-# Define Chinese tokenizer
-def jieba_tokenizer(text):
-    return jieba.lcut(str(text))
+# 添加项目根目录到 sys.path 以便导入 shared 模块
+current_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.abspath(os.path.join(current_dir, '..', '..'))
+if project_root not in sys.path:
+    sys.path.append(project_root)
 
-def get_sentiment_features(text):
-    """
-    Extract sentiment features using SnowNLP (for Chinese text).
-    Returns [sentiment_score]
-    """
-    try:
-        s = SnowNLP(str(text))
-        return [s.sentiments]
-    except Exception:
-        # Fallback for empty or invalid text
-        return [0.5]
+from shared.utils.feature_extraction import jieba_tokenizer, get_sentiment_features
+
+import time
 
 def train_fake_review_detector():
     # Setup paths
@@ -147,14 +140,27 @@ def train_fake_review_detector():
     print("\nConfusion Matrix:")
     print(confusion_matrix(y_test, y_pred))
 
-    # Save Model
-    model_path = os.path.join(models_dir, 'fake_review_model.pkl')
-    vectorizer_path = os.path.join(models_dir, 'tfidf_vectorizer.pkl')
+    # Save Model with Timestamp
+    timestamp = time.strftime("%Y%m%d_%H%M%S")
+    model_filename = f'fake_review_model_{timestamp}.pkl'
+    vectorizer_filename = f'tfidf_vectorizer_{timestamp}.pkl'
+    
+    model_path = os.path.join(models_dir, model_filename)
+    vectorizer_path = os.path.join(models_dir, vectorizer_filename)
+    
+    # Also save as 'latest' for easy loading
+    latest_model_path = os.path.join(models_dir, 'fake_review_model_latest.pkl')
+    latest_vectorizer_path = os.path.join(models_dir, 'tfidf_vectorizer_latest.pkl')
     
     joblib.dump(model, model_path)
     joblib.dump(vectorizer, vectorizer_path)
+    
+    joblib.dump(model, latest_model_path)
+    joblib.dump(vectorizer, latest_vectorizer_path)
+    
     print(f"\nModel saved to {model_path}")
     print(f"Vectorizer saved to {vectorizer_path}")
+    print(f"Latest model also saved to {latest_model_path}")
 
     # Inference Example
     print("\n--- Inference Test (Chinese) ---")
