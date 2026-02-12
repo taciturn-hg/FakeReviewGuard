@@ -85,7 +85,7 @@ def main():
     output_file = os.path.join(data_dir, 'labeled_reviews.csv')
     
     if not os.path.exists(input_file):
-        print(f"File {input_file} not found. Run preprocess.py first.")
+        print(f"File {input_file} not found. Run shared/utils/data_cleaner.py first to generate 'sample_reviews_for_annotation.csv'.")
         return
 
     df = pd.read_csv(input_file)
