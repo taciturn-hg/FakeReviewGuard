@@ -69,8 +69,14 @@ def train_fake_review_detector():
     X = df['extract'].fillna('')
     y = df['label']
 
-    # Split
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+    # Split (stratified to preserve label distribution)
+    X_train, X_test, y_train, y_test = train_test_split(
+        X,
+        y,
+        test_size=0.2,
+        random_state=42,
+        stratify=y,
+    )
 
     # Feature Extraction (TF-IDF with Jieba)
     print("\nExtracting TF-IDF features (using Jieba)...")
@@ -105,12 +111,12 @@ def train_fake_review_detector():
         
         # Calculate training loss
         y_train_prob = model.predict_proba(X_train_final)
-        train_loss = log_loss(y_train, y_train_prob)
+        train_loss = log_loss(y_train, y_train_prob, labels=classes)
         train_losses.append(train_loss)
         
         # Calculate validation loss
         y_test_prob = model.predict_proba(X_test_final)
-        val_loss = log_loss(y_test, y_test_prob)
+        val_loss = log_loss(y_test, y_test_prob, labels=classes)
         val_losses.append(val_loss)
         
         if (epoch + 1) % 5 == 0:

@@ -41,11 +41,16 @@ def annotate_review(client, text, score, product):
     
     Return ONLY a JSON object with the following format:
     {{
-        "sentiment": "Positive/Negative/Neutral",
-        "sentiment_score_match": true/false,
-        "label": "Real" or "Fake",
+        "sentiment": "Positive",
+        "sentiment_score_match": true,
+        "label": "Real",
         "reasoning": "Brief explanation including sentiment analysis"
     }}
+    
+    Where:
+    - "sentiment" must be one of: "Positive", "Negative", or "Neutral".
+    - "sentiment_score_match" must be a boolean indicating whether the sentiment matches the score.
+    - "label" must be either "Real" or "Fake".
     """
     
     try:
@@ -85,7 +90,7 @@ def main():
     output_file = os.path.join(data_dir, 'labeled_reviews.csv')
     
     if not os.path.exists(input_file):
-        print(f"File {input_file} not found. Run preprocess.py first.")
+        print(f"File {input_file} not found. Run shared/utils/data_cleaner.py first to generate 'sample_reviews_for_annotation.csv'.")
         return
 
     df = pd.read_csv(input_file)
