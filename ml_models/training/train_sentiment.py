@@ -69,8 +69,14 @@ def train_fake_review_detector():
     X = df['extract'].fillna('')
     y = df['label']
 
-    # Split
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+    # Split (stratified to preserve label distribution)
+    X_train, X_test, y_train, y_test = train_test_split(
+        X,
+        y,
+        test_size=0.2,
+        random_state=42,
+        stratify=y,
+    )
 
     # Feature Extraction (TF-IDF with Jieba)
     print("\nExtracting TF-IDF features (using Jieba)...")
