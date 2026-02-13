@@ -8,6 +8,5 @@ CREATE TABLE raw_comment (
     source VARCHAR(50) NOT NULL COMMENT '评论来源（如：京东网页 / 京东APP）',
     time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '评论时间',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '数据入库时间',
-    INDEX idx_task_id (task_id),
-    FOREIGN KEY (task_id) REFERENCES crawler_tasks(id)
+    INDEX idx_task_id (task_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='商品评论原始数据表';
