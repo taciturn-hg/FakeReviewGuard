@@ -23,9 +23,11 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     
     # LLM Configuration
-    LLM_API_KEY: str = "your-api-key-here"
-    LLM_MODEL_NAME: str = "gpt-3.5-turbo" # or local model path
-    LLM_API_BASE: str = "https://api.openai.com/v1"
+    # DeepSeek Config
+    LLM_API_KEY: str = "sk-afc7316c31784ae5b7db844c482410be"
+    LLM_MODEL_NAME: str = "deepseek-chat" 
+    LLM_API_BASE: str = "https://api.deepseek.com"
+    DEEPSEEK_API_KEY: str = "sk-afc7316c31784ae5b7db844c482410be"
     
     # Crawler Configuration
     CRAWLER_USER_AGENT: str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
