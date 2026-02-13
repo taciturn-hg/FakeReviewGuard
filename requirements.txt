@@ -19,3 +19,4 @@ joblib
 jieba
 snownlp
 openai
+python-dotenv
