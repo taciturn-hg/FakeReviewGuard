@@ -16,7 +16,7 @@ def init_tables_from_sql():
     """
     遍历 docs/sql/ 目录下所有 .sql 文件并执行建表
     """
-    sql_dir = os.path.join(project_root, "docs", "sql")
+    sql_dir = os.path.join(project_root, "docs", "database")
     
     if not os.path.exists(sql_dir):
         print(f"❌ 找不到 SQL 目录: {sql_dir}")
