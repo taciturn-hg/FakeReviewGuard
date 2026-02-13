@@ -9,6 +9,9 @@ def setup_logger(name: str = "FakeReviewGuard", log_file: str = "app.log", level
     # 创建 logger
     logger = logging.getLogger(name)
     logger.setLevel(level)
+    
+    # 阻止日志向上传播到 root logger，防止重复打印
+    logger.propagate = False
 
     # 避免重复添加 handler
     if logger.handlers:

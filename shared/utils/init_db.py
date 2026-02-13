@@ -52,11 +52,12 @@ def init_tables_from_sql():
                             first_line = statement.strip().splitlines()[0]
                             print(f"   ✅ 执行: {first_line[:50]}...") 
                         except Exception as e:
-                            # 忽略 "表已存在" 警告
-                            if "already exists" not in str(e):
-                                 print(f"   ⚠️ 警告: {e}")
-                                 # 注意：在 begin() 模式下，严重错误会导致整个事务回滚
-                                 # 但 "表已存在" 通常是可以接受的非致命错误
+                            # 严格模式：只忽略 "表已存在" 警告，其他所有错误立即抛出以触发回滚
+                            if "already exists" in str(e) or "Duplicate column name" in str(e):
+                                 print(f"   ⚠️ 跳过 (已存在): {str(e).splitlines()[0]}")
+                            else:
+                                 print(f"   ❌ 致命错误: {e}")
+                                 raise e # 抛出异常，触发 engine.begin() 的自动回滚机制
                 
                 print(f"   ✨ 文件 {sql_file} 执行完毕")
         

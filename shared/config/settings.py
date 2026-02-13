@@ -1,7 +1,14 @@
 
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
+    # Pydantic v2 推荐配置写法
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore" # 忽略 .env 中多余的字段
+    )
+
     # Project Info
     PROJECT_NAME: str = "FakeReviewGuard"
     VERSION: str = "1.0.0"
@@ -24,7 +31,4 @@ class Settings(BaseSettings):
     CRAWLER_USER_AGENT: str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
     CRAWLER_TIMEOUT: int = 30
     
-    class Config:
-        env_file = ".env"
-
 settings = Settings()
