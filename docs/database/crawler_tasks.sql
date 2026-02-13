@@ -1,0 +1,6 @@
+CREATE TABLE crawler_tasks (
+    task_id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '任务ID',
+    product_url VARCHAR(1024) NOT NULL COMMENT '商品链接',
+    status TINYINT DEFAULT 0 COMMENT '任务状态: 0-进行中, 1-完成, 2-失败',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='爬虫任务表';
