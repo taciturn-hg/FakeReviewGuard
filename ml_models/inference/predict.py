@@ -36,15 +36,33 @@ class FakeReviewPredictor:
 
         if os.path.exists(model_path_latest) and os.path.exists(vec_path_latest):
             logger.info(f"Loading latest model from {model_path_latest}...")
-            self.model = joblib.load(model_path_latest)
-            self.vectorizer = joblib.load(vec_path_latest)
+            try:
+                self.model = joblib.load(model_path_latest)
+                self.vectorizer = joblib.load(vec_path_latest)
+            except Exception as e:
+                logger.error(f"Failed to load latest model or vectorizer from '{model_dir}': {e}")
+                raise RuntimeError(f"Failed to load latest fake review model from '{model_dir}'. "
+                                   f"Please verify the model files are not corrupted and are compatible.") from e
         elif os.path.exists(model_path_default) and os.path.exists(vec_path_default):
             logger.info(f"Loading default model from {model_path_default}...")
-            self.model = joblib.load(model_path_default)
-            self.vectorizer = joblib.load(vec_path_default)
+            try:
+                self.model = joblib.load(model_path_default)
+                self.vectorizer = joblib.load(vec_path_default)
+            except Exception as e:
+                logger.error(f"Failed to load default model or vectorizer from '{model_dir}': {e}")
+                raise RuntimeError(f"Failed to load default fake review model from '{model_dir}'. "
+                                   f"Please verify the model files are not corrupted and are compatible.") from e
         else:
             raise FileNotFoundError(f"No model found in {model_dir}. Please run training first.")
 
+        # Validate loaded objects to ensure they provide expected methods
+        if not hasattr(self.model, "predict"):
+            logger.error("Loaded model object is missing required 'predict' method.")
+            raise TypeError("Loaded fake review model is incompatible: missing 'predict' method.")
+
+        if not hasattr(self.vectorizer, "transform"):
+            logger.error("Loaded vectorizer object is missing required 'transform' method.")
+            raise TypeError("Loaded TF-IDF vectorizer is incompatible: missing 'transform' method.")
     def predict(self, text):
         """
         分析单条评论
