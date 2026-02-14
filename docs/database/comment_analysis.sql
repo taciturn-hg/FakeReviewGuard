@@ -14,7 +14,7 @@ CREATE TABLE comment_analysis (
     -- 索引定义：提升外键关联和常用查询性能
     KEY idx_raw_comment_id (raw_comment_id),
     KEY idx_task_id (task_id),
-    KEY idx_analysis_time (analysis_time),
+    KEY idx_created_at (created_at),
     KEY idx_is_fake (is_fake),
     
     -- 外键约束
