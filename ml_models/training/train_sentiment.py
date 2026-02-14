@@ -135,6 +135,7 @@ def train_fake_review_detector():
     
     loss_curve_path = os.path.join(results_dir, 'loss_curve.png')
     plt.savefig(loss_curve_path)
+    plt.close()
     logger.info(f"Loss curve saved to {loss_curve_path}")
 
     # Evaluation
