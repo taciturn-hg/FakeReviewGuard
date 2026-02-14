@@ -82,10 +82,24 @@ def annotate_review(client, text, score, product):
                 content = content.replace('```json', '').replace('```', '').strip()
                 return json.loads(content)
             except Exception as e:
+                error_msg = str(e)
+                # 区分错误类型
+                if "401" in error_msg or "authentication" in error_msg.lower():
+                    logger.error(f"API Authentication Error: {e}. Please check your API Key.")
+                    raise e # 认证错误不需要重试
+                elif "429" in error_msg or "rate limit" in error_msg.lower():
+                    wait_time = (attempt + 1) * 5
+                    logger.warning(f"Rate limit exceeded. Waiting {wait_time}s before retry...")
+                    time.sleep(wait_time)
+                elif "500" in error_msg or "502" in error_msg or "503" in error_msg:
+                    logger.warning(f"Server error ({e}). Retrying...")
+                    time.sleep(2)
+                else:
+                    logger.warning(f"Attempt {attempt+1} failed: {e}. Retrying...")
+                    time.sleep(2)
+                
                 if attempt == max_retries - 1:
                     raise e
-                logger.warning(f"Attempt {attempt+1} failed: {e}. Retrying...")
-                time.sleep(2)
                 
     except Exception as e:
         logger.error(f"Error annotating: {e}")
