@@ -46,8 +46,8 @@ def load_and_sample(sample_size=2000, output_file='sample_reviews_for_annotation
     
     # Basic cleaning
     full_df = full_df.dropna(subset=['extract'])
-    # 改进去重逻辑：结合评论内容、产品名和来源进行去重，避免误删
-    full_df = full_df.drop_duplicates(subset=['extract', 'product', 'source'])
+    # 改进去重逻辑：结合评论内容、产品名、来源和日期进行去重，避免误删不同时间的有效评论
+    full_df = full_df.drop_duplicates(subset=['extract', 'product', 'source', 'date'])
     
     # Sample
     sample_df = full_df.sample(n=min(sample_size, len(full_df)), random_state=42)
