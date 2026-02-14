@@ -11,8 +11,8 @@ def clean_text(text: str) -> str:
     text = re.sub(r'<[^>]+>', '', text)
     
     # 2. 去除 URL
-    # 简化正则，去除不必要的转义
-    text = re.sub(r'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\\(),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+', '', text)
+    # 使用更简单且通用的 URL 正则，匹配以 http/https 开头直到下一个空白符
+    text = re.sub(r'https?://\S+', '', text)
     
     # 3. 去除多余空白 (换行、Tab 变为空格，且合并多个空格)
     text = re.sub(r'\s+', ' ', text).strip()
