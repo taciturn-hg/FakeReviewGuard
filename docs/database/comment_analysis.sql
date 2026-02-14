@@ -6,7 +6,7 @@ CREATE TABLE comment_analysis (
     label VARCHAR(50) COMMENT '标签分类（如：好评/差评/中性）',
     is_fake TINYINT(1) DEFAULT 0 COMMENT '是否为虚假评论：0-真实，1-虚假，2-疑似',
     confidence DECIMAL(3,2) COMMENT '可信度，范围0.00-1.00',
-    sentiment_score DECIMAL(3,2) COMMENT '情感分数，范围-1到1',
+    sentiment_score DECIMAL(3,2) COMMENT '情感分数，范围-1.00到1.00，保留2位小数（通过CHECK约束限定）',
     product VARCHAR(200) COMMENT '商品名称（可冗余存储）',
     analysis_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '分析时间',
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
