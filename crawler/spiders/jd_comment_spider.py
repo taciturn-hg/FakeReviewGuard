@@ -128,6 +128,7 @@ class JDCommentSpider:
         """主爬取循环"""
         page_num = 1
         has_next = True
+        consecutive_empty_pages = 0
         
         while has_next:
             logger.info(f"正在获取第 {page_num} 页数据...")
@@ -136,7 +137,14 @@ class JDCommentSpider:
             got_data, has_next_page = self._process_page_data()
             
             if not got_data:
-                logger.warning(f"第 {page_num} 页未获取到数据")
+                consecutive_empty_pages += 1
+                logger.warning(f"第 {page_num} 页未获取到数据 (连续空页数: {consecutive_empty_pages})")
+                if consecutive_empty_pages > 2:
+                    logger.warning("连续超过 3 页未获取到数据，判定为爬取结束")
+                    has_next = False
+                    break
+            else:
+                consecutive_empty_pages = 0
             
             if not has_next_page:
                 logger.info("已达到最后一页")
@@ -281,11 +289,18 @@ class JDCommentSpider:
             try:
                 next(self.db_generator)
             except StopIteration:
-                pass
-        # self.page.quit() # 根据需要决定是否关闭浏览器
+                logger.info("数据库连接已关闭")
+            except Exception as e:
+                logger.error(f"关闭数据库连接异常: {e}")
+        
+        try:
+            self.page.quit()
+            logger.info("浏览器已关闭")
+        except Exception as e:
+            logger.warning(f"关闭浏览器失败: {e}")
 
 if __name__ == "__main__":
     # 示例运行
-    url = 'https://item.jd.com/100015097018.html'
+    url = 'https://item.jd.com/100205107536.html?extension_id=eyJhZCI6IjY3OTQwIiwiY2giOiIyIiwic2t1IjoiMTAwMjA1MTA3NTM2IiwidHMiOiIxNzcxMDg1MzU0IiwidW5pcWlkIjoie1wiY2xpY2tfaWRcIjpcIjVmODY4YjIzLWU1YjgtNGNmNC1hMGM3LTY5NTE1OTgwNTUyOFwiLFwibWF0ZXJpYWxfaWRcIjpcIjkxNzg2MzA1NTc5MDM0NTkzODdcIixcInBvc19pZFwiOlwiNjc5NDBcIixcInNpZFwiOlwiNzI0YjA3ODYtNTIxYi00YTM3LWIyNzMtNGRiMDljYWQ4NGZkXCJ9In0%3D&jd_pop=5f868b23-e5b8-4cf4-a0c7-695159805528&abt=0'
     spider = JDCommentSpider(url)
     spider.start()
