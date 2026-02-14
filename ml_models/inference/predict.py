@@ -37,23 +37,31 @@ class FakeReviewPredictor:
         if os.path.exists(model_path_latest) and os.path.exists(vec_path_latest):
             logger.info(f"Loading latest model from {model_path_latest}...")
             try:
-                self.model = joblib.load(model_path_latest)
-                self.vectorizer = joblib.load(vec_path_latest)
-            except Exception as e:
-                logger.error(f"Failed to load latest model or vectorizer from '{model_dir}': {e}")
-                raise RuntimeError(f"Failed to load latest fake review model from '{model_dir}'. "
-                                   f"Please verify the model files are not corrupted and are compatible.") from e
-        elif os.path.exists(model_path_default) and os.path.exists(vec_path_default):
-            logger.info(f"Loading default model from {model_path_default}...")
+        # 尝试加载最新模型 (latest)，如果失败则回退到默认模型
+        model_path_latest = os.path.join(model_dir, 'fake_review_model_latest.pkl')
+        vec_path_latest = os.path.join(model_dir, 'tfidf_vectorizer_latest.pkl')
+        
+        model_path_default = os.path.join(model_dir, 'fake_review_model.pkl')
+        vec_path_default = os.path.join(model_dir, 'tfidf_vectorizer.pkl')
+
+        # 避免使用 os.path.exists 造成 TOCTOU 问题，直接尝试加载
+        try:
+            logger.info(f"Loading latest model from {model_path_latest}...")
+            self.model = joblib.load(model_path_latest)
+            self.vectorizer = joblib.load(vec_path_latest)
+        except Exception as latest_exc:
+            logger.warning(
+                f"Failed to load latest model from {model_dir}, falling back to default. "
+                f"Reason: {latest_exc}"
+            )
             try:
+                logger.info(f"Loading default model from {model_path_default}...")
                 self.model = joblib.load(model_path_default)
                 self.vectorizer = joblib.load(vec_path_default)
-            except Exception as e:
-                logger.error(f"Failed to load default model or vectorizer from '{model_dir}': {e}")
-                raise RuntimeError(f"Failed to load default fake review model from '{model_dir}'. "
-                                   f"Please verify the model files are not corrupted and are compatible.") from e
-        else:
-            raise FileNotFoundError(f"No model found in {model_dir}. Please run training first.")
+            except Exception as default_exc:
+                raise FileNotFoundError(
+                    f"No model found in {model_dir}. Please run training first."
+                ) from default_exc
 
         # Validate loaded objects to ensure they provide expected methods
         if not hasattr(self.model, "predict"):
