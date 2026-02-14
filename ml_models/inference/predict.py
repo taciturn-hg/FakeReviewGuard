@@ -10,7 +10,7 @@ project_root = os.path.abspath(os.path.join(current_dir, '..', '..'))
 if project_root not in sys.path:
     sys.path.append(project_root)
 
-from shared.utils.feature_extraction import jieba_tokenizer, get_sentiment_features
+from shared.utils.feature_extraction import get_sentiment_features
 from shared.utils import logger
 
 # 修复 joblib 加载时的 pickle 路径问题
