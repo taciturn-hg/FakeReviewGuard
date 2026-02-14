@@ -110,8 +110,8 @@ class FakeReviewPredictor:
             "text": text,
             "label": str(pred_label),
             "is_fake": bool(is_fake),
-            "confidence": float(f"{confidence:.4f}"),
-            "sentiment_score": float(f"{sentiment_score:.4f}")
+            "confidence": round(confidence, 4),
+            "sentiment_score": round(sentiment_score, 4)
         }
 
 if __name__ == "__main__":
