@@ -18,6 +18,7 @@ CREATE TABLE comment_analysis (
         REFERENCES raw_comment(task_id),
         
     -- 数据约束
+    CONSTRAINT chk_is_fake CHECK (is_fake IN (0, 1, 2)),
     CONSTRAINT chk_confidence CHECK (confidence >= 0 AND confidence <= 1),
     CONSTRAINT chk_sentiment CHECK (sentiment_score >= -1 AND sentiment_score <= 1)
     
