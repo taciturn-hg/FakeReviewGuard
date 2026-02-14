@@ -2,7 +2,7 @@ CREATE TABLE comment_analysis (
     id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '分析结果ID',
     raw_comment_id BIGINT NOT NULL COMMENT '关联的原始评论ID',
     task_id BIGINT NOT NULL COMMENT '关联的任务ID',
-    extract TEXT COMMENT '评论内容（可冗余存储，便于独立查询）',
+    extract VARCHAR(500) COMMENT '评论内容摘要（建议仅存前200字符；完整内容请通过 JOIN raw_comment 获取）',
     label VARCHAR(50) COMMENT '标签分类（如：好评/差评/中性）',
     is_fake TINYINT(1) DEFAULT 0 COMMENT '是否为虚假评论：0-真实，1-虚假，2-疑似',
     confidence DECIMAL(3,2) COMMENT '可信度，范围0.00-1.00',
