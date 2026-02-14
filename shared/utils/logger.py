@@ -2,6 +2,8 @@ import logging
 import sys
 from pathlib import Path
 
+import os
+
 def setup_logger(name: str = "FakeReviewGuard", log_file: str = "app.log", level=logging.INFO):
     """
     配置并返回一个 logger 实例
@@ -29,8 +31,12 @@ def setup_logger(name: str = "FakeReviewGuard", log_file: str = "app.log", level
 
     # 文件输出 (如果有路径)
     if log_file:
-        log_path = Path("logs")
-        log_path.mkdir(exist_ok=True) # 确保 logs 目录存在
+        # 获取项目根目录 (shared/utils/logger.py -> shared/utils -> shared -> root)
+        current_dir = Path(__file__).resolve().parent
+        project_root = current_dir.parent.parent
+        log_path = project_root / "docs" / "logs"
+        
+        log_path.mkdir(parents=True, exist_ok=True) # 确保 docs/logs 目录存在
         
         file_handler = logging.FileHandler(log_path / log_file, encoding="utf-8")
         file_handler.setFormatter(formatter)
