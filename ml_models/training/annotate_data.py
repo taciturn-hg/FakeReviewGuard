@@ -143,12 +143,15 @@ def main():
         labels = []
         reasonings = []
         
+        # Use configurable delay for API rate limiting; default to 0.5s to preserve current behavior
+        request_delay = getattr(settings, "deepseek_request_delay_seconds", 0.5)
+        
         for index, row in df.iterrows():
             logger.info(f"Annotating review {index + 1}/{len(df)}...")
             result = annotate_review(client, row['extract'], row['score'], row['product'])
             labels.append(result.get('label', 'Unknown'))
             reasonings.append(result.get('reasoning', 'No reasoning'))
-            time.sleep(0.5) # Rate limiting
+            time.sleep(request_delay)  # Rate limiting
             
         df['label'] = labels
         df['reasoning'] = reasonings
