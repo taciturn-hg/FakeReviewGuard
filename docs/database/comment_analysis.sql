@@ -20,8 +20,6 @@ CREATE TABLE comment_analysis (
     -- 外键约束
     CONSTRAINT fk_raw_comment FOREIGN KEY (raw_comment_id) 
         REFERENCES raw_comment(id) ON DELETE CASCADE,
-    CONSTRAINT fk_task_id FOREIGN KEY (task_id) 
-        REFERENCES raw_comment(task_id),
         
     -- 数据约束
     CONSTRAINT chk_confidence CHECK (confidence >= 0 AND confidence <= 1),
