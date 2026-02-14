@@ -157,7 +157,11 @@ def main():
         labels = []
         reasonings = []
         
-        # Use configurable delay for API rate limiting; default to 0.5s to preserve current behavior
+        # Optional override from settings:
+        # - Name: deepseek_request_delay_seconds
+        # - Purpose: control delay between DeepSeek API calls for rate limiting
+        # - Unit: seconds
+        # - Default: 0.5 (preserves current behavior if not explicitly configured)
         request_delay = getattr(settings, "deepseek_request_delay_seconds", 0.5)
         
         for index, row in df.iterrows():
