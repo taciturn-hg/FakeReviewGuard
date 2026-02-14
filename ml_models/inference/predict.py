@@ -120,22 +120,57 @@ class FakeReviewPredictor:
             "sentiment_score": round(sentiment_score, 4)
         }
 
+def _run_self_tests(predictor: FakeReviewPredictor) -> None:
+    """
+    Basic self-tests for FakeReviewPredictor.predict to exercise common and edge-case inputs.
+
+    This is not a replacement for a proper test suite, but it provides a minimal
+    automated check when this module is executed as a script.
+    """
+    test_cases = {
+        "normal_positive": "这个手机真是太好用了！我买了10个。强烈推荐！",
+        "normal_negative": "垃圾手机，开机就发烫，退货！",
+        "empty_string": "",
+        "whitespace_only": "    ",
+        "very_long_text": "很好用！" * 1000,
+    }
+
+    for name, text in test_cases.items():
+        logger.info(f"[SELF-TEST] Running case '{name}'")
+        result = predictor.predict(text)
+
+        # Basic structural checks
+        assert isinstance(result, dict), "predict() should return a dict"
+        for key in ("text", "label", "is_fake", "confidence", "sentiment_score"):
+            assert key in result, f"Missing key '{key}' in prediction result"
+
+        assert isinstance(result["label"], str), "label should be a string"
+        assert isinstance(result["is_fake"], bool), "is_fake should be a bool"
+        assert isinstance(result["confidence"], float), "confidence should be a float"
+        assert isinstance(result["sentiment_score"], float), "sentiment_score should be a float"
+
+    logger.info("[SELF-TEST] All basic FakeReviewPredictor.predict() checks passed.")
+
+
 if __name__ == "__main__":
-    # 使用示例
+    # 使用示例和简单自检
     try:
         predictor = FakeReviewPredictor()
-        
+
+        # 运行简单自检用例，验证常见输入和边界情况
+        _run_self_tests(predictor)
+
+        # 手动示例
         test_reviews = [
             "这个手机真是太好用了！我买了10个。强烈推荐！",
             "屏幕分辨率很高，运行速度快，电池也很耐用，非常满意的一次购物。",
             "垃圾手机，开机就发烫，退货！",
             "好评返现5元，截图给客服。"
         ]
-        
+
         logger.info("\n--- 评论分析结果 ---")
         for review in test_reviews:
             result = predictor.predict(review)
             logger.info(f"Data: {result}")
-            
     except Exception as e:
         logger.error(f"Error: {e}")
