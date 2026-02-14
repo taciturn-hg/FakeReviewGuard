@@ -17,9 +17,7 @@ from shared.utils import logger
 # 训练时 jieba_tokenizer 可能被保存为 __main__.jieba_tokenizer
 # 这里将其注入到 __main__ 命名空间中
 if __name__ != "__main__":
-    import sys
-    import shared.utils.feature_extraction
-    sys.modules['__main__'].jieba_tokenizer = shared.utils.feature_extraction.jieba_tokenizer
+    sys.modules['__main__'].jieba_tokenizer = jieba_tokenizer
 
 class FakeReviewPredictor:
     def __init__(self, model_dir=None):
