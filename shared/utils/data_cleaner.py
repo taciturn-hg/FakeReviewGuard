@@ -23,12 +23,13 @@ def load_and_sample(sample_size=2000, output_file='sample_reviews_for_annotation
                 df = pd.read_csv(f, encoding=encoding)
                 # Keep only relevant columns
                 if 'extract' in df.columns and 'score' in df.columns:
-                    # 确保所有需要的列都存在，不存在的填充默认值
+                    # 确保所有需要的列都存在；对缺失列使用缺失值标记而不是合成字符串，避免掩盖数据质量问题
                     required_cols = ['extract', 'score', 'source', 'date', 'product']
-                    for col in required_cols:
-                        if col not in df.columns:
-                            df[col] = 'Unknown'
-                            
+                    missing_cols = [col for col in required_cols if col not in df.columns]
+                    if missing_cols:
+                        print(f"Warning: file {os.path.basename(f)} is missing columns {missing_cols}; filling with NaN.")
+                        for col in missing_cols:
+                            df[col] = pd.NA
                     df = df[required_cols]
                     dfs.append(df)
                 break
