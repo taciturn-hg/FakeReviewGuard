@@ -19,7 +19,7 @@ CREATE TABLE comment_analysis (
     
     -- 外键约束
     CONSTRAINT fk_raw_comment FOREIGN KEY (raw_comment_id) 
-        REFERENCES raw_comment(id) ON DELETE CASCADE,
+        REFERENCES raw_comment(id) ON DELETE RESTRICT,
         
     -- 数据约束
     CONSTRAINT chk_is_fake CHECK (is_fake IN (0, 1, 2)),
