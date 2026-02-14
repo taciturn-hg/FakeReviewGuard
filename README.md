@@ -217,12 +217,14 @@ def test_sentiment_analysis():
 ```python
 # 评论数据格式
 {
-    "id": "12345",
+    "id": "1",                    # 原始评论ID (自增主键)
+    "task_id": "1001",            # 关联的任务ID
+    "original_comment_id": "123", # 平台原始评论ID
     "product": "商品名",
     "extract": "评论内容",
     "score": 5,
     "source": "评论来源",
-    "time": "2025-01-01 10:00:00"
+    "comment_time": "2025-01-01 10:00:00"
 }
 
 # 分析结果格式
