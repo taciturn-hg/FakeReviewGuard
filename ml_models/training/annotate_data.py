@@ -21,9 +21,33 @@ load_dotenv()
 API_KEY = settings.DEEPSEEK_API_KEY
 BASE_URL = "https://api.deepseek.com"
 
+def _is_invalid_api_key(api_key) -> bool:
+    """
+    Return True if the provided API key is missing, empty, or looks like a placeholder.
+    This helps avoid accidentally using default/placeholder values in production.
+    """
+    if not api_key:
+        return True
+
+    api_key_str = str(api_key).strip()
+    if not api_key_str:
+        return True
+
+    lower_key = api_key_str.lower()
+
+    # Exact known placeholder value
+    if lower_key == "your-deepseek-api-key-here":
+        return True
+
+    # Generic placeholder-like patterns
+    if "your-" in lower_key or "-here" in lower_key:
+        return True
+
+    return False
+
 def get_deepseek_client():
-    if not API_KEY or API_KEY == "your-deepseek-api-key-here":
-        logger.error("DEEPSEEK_API_KEY not found or default in settings.")
+    if _is_invalid_api_key(API_KEY):
+        logger.error("DEEPSEEK_API_KEY not found or default/placeholder in settings.")
         logger.info("Please update .env file with your actual DEEPSEEK_API_KEY")
         return None
     return OpenAI(api_key=API_KEY, base_url=BASE_URL)
