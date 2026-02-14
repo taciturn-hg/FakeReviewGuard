@@ -14,6 +14,7 @@ from sqlalchemy import text
 from DrissionPage import ChromiumPage
 from shared.utils.init_db import init_tables_from_sql
 from shared.utils.logger import logger
+from shared.utils.timer import ExecutionTimer
 
 # 尝试导入数据库配置
 try:
@@ -22,20 +23,34 @@ except ImportError:
     get_db = None
 
 class JDCommentSpider:
-    def __init__(self, product_url, task_id=None):
+    def __init__(self, product_url, db=None, task_id=None):
         """
         初始化京东评论爬虫
         :param product_url: 商品详情页URL
+        :param db: 数据库会话对象（可选，用于依赖注入）
         :param task_id: 关联的任务ID，如果不传则自动使用当前时间戳生成
         """
         self.product_url = product_url
         # 如果没有传入task_id，则使用当前时间戳（秒级整数）
         self.task_id = task_id if task_id else int(time.time())
         self.page = ChromiumPage()
+        
+        # 状态初始化
+        self.status = 1 # 1: 进行中, 0: 报错, 2: 已完成
         self.db_generator = None
         self.db = None
-        self.status = 1 # 1: 进行中, 0: 报错, 2: 已完成
+
+        # 数据库连接逻辑：优先使用传入的 db，否则尝试自动连接
+        if db:
+            self.db = db
+            logger.info("使用传入的数据库连接")
+        else:
+            self._connect_to_db()
         
+        logger.info(f"爬虫初始化完成，当前状态: {self.status}")
+
+    def _connect_to_db(self):
+        """初始化数据库连接（备用方案）"""
         # 初始化数据库连接
         if get_db:
             try:
@@ -52,26 +67,40 @@ class JDCommentSpider:
 
     def start(self):
         """开始爬取流程"""
-        try:
-            logger.info(f"开始爬取: {self.product_url}, Task ID: {self.task_id}")
-            self.page.get(self.product_url)
-            self.page.listen.start('client.action')
+        with ExecutionTimer(f"爬虫任务(TaskID: {self.task_id})"):
+            try:
+                logger.info(f"开始爬取: {self.product_url}, Task ID: {self.task_id}")
+                self.page.get(self.product_url)
+                self.page.listen.start('client.action')
 
-            # 打开评论弹窗
-            if not self._open_comment_dialog():
-                logger.error("无法打开评论弹窗，爬取终止")
+                # 打开评论弹窗
+                if not self._open_comment_dialog():
+                    # 检查是否被反爬拦截跳转到了首页
+                    if self.page.url.startswith("https://www.jd.com") or self.page.title == "京东(JD.COM)-正品低价、品质保障、配送及时、轻松购物！":
+                        logger.warning("检测到被反爬拦截跳转至京东首页，尝试重启爬虫...")
+                        self.page.quit()
+                        time.sleep(random.uniform(5, 10)) # 等待一段时间
+                        self.page = ChromiumPage() # 重启浏览器
+                        # 递归调用自身重启
+                        self.start()
+                        return
+
+                    logger.error("无法打开评论弹窗，爬取终止")
+                    self.status = 0
+                    logger.info(f"状态更新为: {self.status} (报错)")
+                    return
+
+                self._crawl_loop()
+                # 正常结束
+                self.status = 2
+                logger.info(f"爬取任务完成，状态更新为: {self.status} (已完成)")
+
+            except Exception as e:
+                logger.error(f"爬虫运行异常: {e}")
                 self.status = 0
-                return
-
-            self._crawl_loop()
-            # 正常结束
-            self.status = 2
-
-        except Exception as e:
-            logger.error(f"爬虫运行异常: {e}")
-            self.status = 0
-        finally:
-            self._close()
+                logger.info(f"状态更新为: {self.status} (报错)")
+            finally:
+                self._close()
 
     def get_status(self):
         """获取爬虫当前状态"""
