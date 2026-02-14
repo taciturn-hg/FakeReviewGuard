@@ -94,9 +94,11 @@ FakeReviewGuard/
 │   ├── constants/          # 数据格式、状态码、错误信息等常量
 │   └── utils/              # 通用的文本处理、数据验证、日志等工具函数
 ├── docs/                    # 文档目录
-│   └── database/               # 数据库文档
-│       ├── schema.sql         # 建表SQL
-│       └── ERD.png 
+│   ├── database/               # 数据库文档
+│   │   ├── schema.sql         # 建表SQL
+│   │   └── ERD.png 
+│   └── logs/                   # 系统日志
+│       └── app.log            # 应用运行日志 
 ├── tests/                   # 测试代码
 ├── requirements.txt         # Python依赖
 ├── README.md               # 项目说明
