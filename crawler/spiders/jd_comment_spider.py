@@ -69,7 +69,10 @@ class JDCommentSpider:
         """开始爬取流程"""
         with ExecutionTimer(f"爬虫任务(TaskID: {self.task_id})"):
             try:
+                # 1. 状态打点：开始 (Running)
+                self._update_task_status(1)
                 logger.info(f"开始爬取: {self.product_url}, Task ID: {self.task_id}")
+                
                 self.page.get(self.product_url)
                 self.page.listen.start('client.action')
 
@@ -86,21 +89,41 @@ class JDCommentSpider:
                         return
 
                     logger.error("无法打开评论弹窗，爬取终止")
-                    self.status = 0
+                    # 状态打点：失败 (Failed)
+                    self._update_task_status(3)
                     logger.info(f"状态更新为: {self.status} (报错)")
                     return
 
                 self._crawl_loop()
                 # 正常结束
-                self.status = 2
+                # 状态打点：完成 (Success)
+                self._update_task_status(2)
                 logger.info(f"爬取任务完成，状态更新为: {self.status} (已完成)")
 
             except Exception as e:
                 logger.error(f"爬虫运行异常: {e}")
-                self.status = 0
+                # 状态打点：失败 (Failed)
+                self._update_task_status(3)
                 logger.info(f"状态更新为: {self.status} (报错)")
             finally:
                 self._close()
+
+    def _update_task_status(self, status_code):
+        """
+        更新任务状态到数据库
+        :param status_code: 0-等待, 1-进行中, 2-已完成, 3-失败
+        """
+        self.status = status_code
+        if self.db:
+            try:
+                self.db.execute(
+                    text("UPDATE crawler_tasks SET status = :status WHERE task_id = :task_id"),
+                    {"status": status_code, "task_id": self.task_id}
+                )
+                self.db.commit()
+            except Exception as e:
+                logger.error(f"更新任务状态失败: {e}")
+                self.db.rollback()
 
     def get_status(self):
         """获取爬虫当前状态"""
@@ -263,8 +286,8 @@ class JDCommentSpider:
                 }
                 comments_to_insert.append(item)
                 logger.debug(f"抓取: {item['extract'][:20]}...")
-            except Exception:
-                pass
+            except Exception as e:
+                logger.error(f"解析评论数据异常: {e}")
 
         if comments_to_insert and self.db:
             try:
