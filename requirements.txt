@@ -1,3 +1,4 @@
+# Backend Dependencies
 fastapi
 uvicorn
 jinja2
@@ -7,4 +8,16 @@ sqlalchemy
 pydantic-settings
 python-dotenv
 pymysql
+
+# ML / Data Dependencies
+pandas
+numpy
+matplotlib
+scikit-learn
+scipy
+joblib
+jieba
+snownlp
+openai
+python-dotenv
 DrissionPage

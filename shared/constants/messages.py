@@ -34,4 +34,8 @@ class Messages:
             BusinessCode.ANALYSIS_FAILED: Messages.ANALYSIS_FAILED,
             BusinessCode.MODEL_LOAD_ERROR: Messages.MODEL_NOT_READY,
         }
-        return mapping.get(code, Messages.INTERNAL_ERROR)
+        try:
+            business_code = BusinessCode(code)
+        except ValueError:
+            return Messages.INTERNAL_ERROR
+        return mapping.get(business_code, Messages.INTERNAL_ERROR)
