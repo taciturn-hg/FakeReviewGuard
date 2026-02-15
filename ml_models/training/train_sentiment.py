@@ -37,33 +37,33 @@ def train_fake_review_detector():
     input_file = os.path.join(data_dir, 'labeled_reviews.csv')
     
     if not os.path.exists(input_file):
-        logger.error(f"File {input_file} not found. Please ensure data is available.")
+        logger.error(f"未找到文件 {input_file}。请确保数据可用。")
         # Fallback to current directory for backward compatibility or testing
         if os.path.exists('labeled_reviews.csv'):
             input_file = 'labeled_reviews.csv'
-            logger.info(f"Found {input_file} in current directory, using it.")
+            logger.info(f"在当前目录找到 {input_file}，正在使用它。")
         else:
             return
 
-    logger.info(f"Loading data from {input_file}...")
+    logger.info(f"正在从 {input_file} 加载数据...")
     try:
         df = pd.read_csv(input_file)
     except Exception as e:
-        logger.error(f"Error reading CSV: {e}")
+        logger.error(f"读取 CSV 错误: {e}")
         return
 
-    logger.info(f"Loaded {len(df)} labeled reviews.")
+    logger.info(f"已加载 {len(df)} 条已标注评论。")
     
     # Check if we have both classes
     if 'label' not in df.columns:
-        logger.error("Error: 'label' column missing in data.")
+        logger.error("错误: 数据中缺少 'label' 列。")
         return
 
-    logger.info("Label distribution:")
+    logger.info("标签分布:")
     print(df['label'].value_counts())
     
     if len(df['label'].unique()) < 2:
-        logger.error("Error: Need both 'Real' and 'Fake' labels to train a classifier.")
+        logger.error("错误: 需要同时包含 'Real' 和 'Fake' 标签才能训练分类器。")
         return
 
     # Text Preprocessing (Simple)
@@ -80,7 +80,7 @@ def train_fake_review_detector():
     )
 
     # Feature Extraction (TF-IDF with Jieba)
-    logger.info("Extracting TF-IDF features (using Jieba)...")
+    logger.info("正在提取 TF-IDF 特征 (使用 Jieba)...")
     # Note: explicit tokenizer overrides stop_words, but we can filter inside tokenizer if needed.
     # Here we rely on TF-IDF to filter rare words.
     vectorizer = TfidfVectorizer(tokenizer=jieba_tokenizer, max_features=5000, token_pattern=None)
@@ -88,17 +88,17 @@ def train_fake_review_detector():
     X_test_tfidf = vectorizer.transform(X_test)
 
     # Feature Extraction (Sentiment)
-    logger.info("Extracting sentiment features (using SnowNLP)...")
+    logger.info("正在提取情感特征 (使用 SnowNLP)...")
     X_train_sent = np.array([get_sentiment_features(t) for t in X_train])
     X_test_sent = np.array([get_sentiment_features(t) for t in X_test])
 
     # Combine Features
-    logger.info("Combining features...")
+    logger.info("正在组合特征...")
     X_train_final = hstack([X_train_tfidf, X_train_sent])
     X_test_final = hstack([X_test_tfidf, X_test_sent])
 
     # Model Training with Loss Tracking
-    logger.info("Training model with SGD (monitoring loss)...")
+    logger.info("正在使用 SGD 训练模型 (监控损失)...")
     # SGDClassifier with loss='log_loss' is equivalent to Logistic Regression solved via SGD
     model = SGDClassifier(loss='log_loss', max_iter=1, warm_start=True, random_state=42, learning_rate='optimal')
     
@@ -121,7 +121,7 @@ def train_fake_review_detector():
         val_losses.append(val_loss)
         
         if (epoch + 1) % 5 == 0:
-            logger.info(f"Epoch {epoch+1}/{epochs} - Train Loss: {train_loss:.4f} - Val Loss: {val_loss:.4f}")
+            logger.info(f"轮次 {epoch+1}/{epochs} - 训练损失: {train_loss:.4f} - 验证损失: {val_loss:.4f}")
 
     # Plot Loss Curve
     plt.figure(figsize=(10, 6))
@@ -136,16 +136,16 @@ def train_fake_review_detector():
     loss_curve_path = os.path.join(results_dir, 'loss_curve.png')
     plt.savefig(loss_curve_path)
     plt.close()
-    logger.info(f"Loss curve saved to {loss_curve_path}")
+    logger.info(f"损失曲线已保存至 {loss_curve_path}")
 
     # Evaluation
-    logger.info("Evaluating model...")
+    logger.info("正在评估模型...")
     y_pred = model.predict(X_test_final)
     
-    logger.info("Classification Report:")
+    logger.info("分类报告:")
     print(classification_report(y_test, y_pred))
     
-    logger.info("Confusion Matrix:")
+    logger.info("混淆矩阵:")
     print(confusion_matrix(y_test, y_pred))
 
     # Save Model with Timestamp
@@ -166,12 +166,12 @@ def train_fake_review_detector():
     joblib.dump(model, latest_model_path)
     joblib.dump(vectorizer, latest_vectorizer_path)
     
-    logger.info(f"Model saved to {model_path}")
-    logger.info(f"Vectorizer saved to {vectorizer_path}")
-    logger.info(f"Latest model also saved to {latest_model_path}")
+    logger.info(f"模型已保存至 {model_path}")
+    logger.info(f"向量化器已保存至 {vectorizer_path}")
+    logger.info(f"最新模型也已保存至 {latest_model_path}")
 
     # Inference Example
-    logger.info("--- Inference Test (Chinese) ---")
+    logger.info("--- 推理测试 (中文) ---")
     test_review = "这个手机真是太好用了！我买了10个。强烈推荐！"
     
     # Process single sample
@@ -180,8 +180,8 @@ def train_fake_review_detector():
     vec_final = hstack([vec_tfidf, vec_sent])
     
     prediction = model.predict(vec_final)[0]
-    logger.info(f"Review: {test_review}")
-    logger.info(f"Prediction: {prediction}")
+    logger.info(f"评论: {test_review}")
+    logger.info(f"预测结果: {prediction}")
 
 if __name__ == "__main__":
     train_fake_review_detector()

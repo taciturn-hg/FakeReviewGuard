@@ -15,19 +15,21 @@ class Settings(BaseSettings):
     
     # Database
     # 格式: mysql+pymysql://user:password@host:port/dbname
-    DATABASE_URL: str = "mysql+pymysql://fake_review_guard:123456@localhost:3306/fake_review_guard"
+    # 生产环境请在 .env 中配置 DATABASE_URL
+    DATABASE_URL: str = "mysql+pymysql://root:password@localhost:3306/fake_review_guard"
     
     # Security
-    SECRET_KEY: str = "B6sTXbttgaNk-klxVSnbswwZ2MpoEmIT3WBn-TMmjC4"
+    SECRET_KEY: str = "change-me-in-production"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     
     # LLM Configuration
     # DeepSeek Config
-    LLM_API_KEY: str = "sk-afc7316c31784ae5b7db844c482410be"
+    # 生产环境请在 .env 中配置 API Key
+    LLM_API_KEY: str = ""
     LLM_MODEL_NAME: str = "deepseek-chat" 
     LLM_API_BASE: str = "https://api.deepseek.com"
-    DEEPSEEK_API_KEY: str = "sk-afc7316c31784ae5b7db844c482410be"
+    DEEPSEEK_API_KEY: str = ""
     
     # Crawler Configuration
     CRAWLER_USER_AGENT: str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"

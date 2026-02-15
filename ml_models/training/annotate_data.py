@@ -47,8 +47,8 @@ def _is_invalid_api_key(api_key) -> bool:
 
 def get_deepseek_client():
     if _is_invalid_api_key(API_KEY):
-        logger.error("DEEPSEEK_API_KEY not found or default/placeholder in settings.")
-        logger.info("Please update .env file with your actual DEEPSEEK_API_KEY")
+        logger.error("设置中未找到 DEEPSEEK_API_KEY 或为默认/占位符。")
+        logger.info("请在 .env 文件中更新您的实际 DEEPSEEK_API_KEY")
         return None
     return OpenAI(api_key=API_KEY, base_url=BASE_URL)
 
@@ -109,24 +109,24 @@ def annotate_review(client, text, score, product):
                 error_msg = str(e)
                 # 区分错误类型
                 if "401" in error_msg or "authentication" in error_msg.lower():
-                    logger.error(f"API Authentication Error: {e}. Please check your API Key.")
+                    logger.error(f"API 认证错误: {e}。请检查您的 API Key。")
                     raise e # 认证错误不需要重试
                 elif "429" in error_msg or "rate limit" in error_msg.lower():
                     wait_time = (attempt + 1) * 5
-                    logger.warning(f"Rate limit exceeded. Waiting {wait_time}s before retry...")
+                    logger.warning(f"超出速率限制。等待 {wait_time} 秒后重试...")
                     time.sleep(wait_time)
                 elif "500" in error_msg or "502" in error_msg or "503" in error_msg:
-                    logger.warning(f"Server error ({e}). Retrying...")
+                    logger.warning(f"服务器错误 ({e})。正在重试...")
                     time.sleep(2)
                 else:
-                    logger.warning(f"Attempt {attempt+1} failed: {e}. Retrying...")
+                    logger.warning(f"第 {attempt+1} 次尝试失败: {e}。正在重试...")
                     time.sleep(2)
                 
                 if attempt == max_retries - 1:
                     raise e
                 
     except Exception as e:
-        logger.error(f"Error annotating: {e}")
+        logger.error(f"标注错误: {e}")
         return {"label": "Error", "reasoning": str(e)}
 
 def main():
@@ -138,7 +138,7 @@ def main():
     output_file = os.path.join(data_dir, 'labeled_reviews.csv')
     
     if not os.path.exists(input_file):
-        logger.error(f"File {input_file} not found. Run shared/utils/data_cleaner.py first to generate 'sample_reviews_for_annotation.csv'.")
+        logger.error(f"未找到文件 {input_file}。请先运行 shared/utils/data_cleaner.py 生成 'sample_reviews_for_annotation.csv'。")
         return
 
     df = pd.read_csv(input_file)
@@ -146,14 +146,14 @@ def main():
     
     if not client:
         # Mocking the process for demonstration if no key is provided
-        logger.warning("[DEMO MODE] No API Key provided. Generating Mock Labels...")
-        logger.info("In a real scenario, DeepSeek would analyze each review.")
+        logger.warning("[演示模式] 未提供 API Key。正在生成模拟标签...")
+        logger.info("在真实场景中，DeepSeek 将分析每条评论。")
         
         # Simple heuristic for mock labels
         df['label'] = df['extract'].apply(lambda x: 'Fake' if len(str(x)) < 30 or 'great' in str(x).lower() else 'Real')
         df['reasoning'] = "Mock reasoning based on length/keywords."
     else:
-        logger.info("Starting annotation with DeepSeek...")
+        logger.info("开始使用 DeepSeek 进行标注...")
         labels = []
         reasonings = []
         
@@ -165,7 +165,7 @@ def main():
         request_delay = getattr(settings, "deepseek_request_delay_seconds", 0.5)
         
         for index, row in df.iterrows():
-            logger.info(f"Annotating review {index + 1}/{len(df)}...")
+            logger.info(f"正在标注评论 {index + 1}/{len(df)}...")
             result = annotate_review(client, row['extract'], row['score'], row['product'])
             labels.append(result.get('label', 'Unknown'))
             reasonings.append(result.get('reasoning', 'No reasoning'))
@@ -179,13 +179,13 @@ def main():
     error_df = df[df['label'] == 'Error']
     
     if not error_df.empty:
-        logger.warning(f"Warning: {len(error_df)} reviews failed annotation.")
+        logger.warning(f"警告: {len(error_df)} 条评论标注失败。")
         error_file = os.path.join(data_dir, 'annotation_errors.csv')
         error_df.to_csv(error_file, index=False)
-        logger.info(f"Errors saved to {error_file}")
+        logger.info(f"错误已保存至 {error_file}")
 
     valid_df.to_csv(output_file, index=False)
-    logger.info(f"Annotation complete. Saved {len(valid_df)} reviews to {output_file}")
+    logger.info(f"标注完成。已保存 {len(valid_df)} 条评论至 {output_file}")
     print(valid_df[['extract', 'label', 'reasoning']].head())
 
 if __name__ == "__main__":

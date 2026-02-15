@@ -10,14 +10,18 @@ project_root = os.path.abspath(os.path.join(current_dir, '..', '..'))
 if project_root not in sys.path:
     sys.path.append(project_root)
 
-from shared.utils.feature_extraction import get_sentiment_features
+from shared.utils.feature_extraction import get_sentiment_features, jieba_tokenizer
 from shared.utils import logger
 
 # 修复 joblib 加载时的 pickle 路径问题
 # 训练时 jieba_tokenizer 可能被保存为 __main__.jieba_tokenizer
 # 这里将其注入到 __main__ 命名空间中
-if __name__ != "__main__":
-    sys.modules['__main__'].jieba_tokenizer = jieba_tokenizer
+try:
+    # 如果 __main__ 中没有 jieba_tokenizer，则注入
+    if not hasattr(sys.modules['__main__'], 'jieba_tokenizer'):
+        sys.modules['__main__'].jieba_tokenizer = jieba_tokenizer
+except Exception as e:
+    logger.warning(f"无法将 jieba_tokenizer 注入到 __main__: {e}")
 
 class FakeReviewPredictor:
     def __init__(self, model_dir=None):
@@ -25,50 +29,48 @@ class FakeReviewPredictor:
             base_dir = os.path.dirname(os.path.abspath(__file__))
             model_dir = os.path.join(base_dir, '..', 'models')
         
-        # 尝试加载最新模型 (latest)，如果不存在则加载默认模型
-        model_path_latest = os.path.join(model_dir, 'fake_review_model_latest.pkl')
-        vec_path_latest = os.path.join(model_dir, 'tfidf_vectorizer_latest.pkl')
-        
-        model_path_default = os.path.join(model_dir, 'fake_review_model.pkl')
-        vec_path_default = os.path.join(model_dir, 'tfidf_vectorizer.pkl')
+        self.model_dir = model_dir
+        self._load_model()
 
-        if os.path.exists(model_path_latest) and os.path.exists(vec_path_latest):
-            logger.info(f"Loading latest model from {model_path_latest}...")
-            try:
-        # 尝试加载最新模型 (latest)，如果失败则回退到默认模型
-        model_path_latest = os.path.join(model_dir, 'fake_review_model_latest.pkl')
-        vec_path_latest = os.path.join(model_dir, 'tfidf_vectorizer_latest.pkl')
+    def _load_model(self):
+        """
+        加载模型和向量化器，优先加载最新模型 (latest)，失败则回退到默认模型
+        """
+        # 尝试加载最新模型 (latest)，如果不存在则加载默认模型
+        model_path_latest = os.path.join(self.model_dir, 'fake_review_model_latest.pkl')
+        vec_path_latest = os.path.join(self.model_dir, 'tfidf_vectorizer_latest.pkl')
         
-        model_path_default = os.path.join(model_dir, 'fake_review_model.pkl')
-        vec_path_default = os.path.join(model_dir, 'tfidf_vectorizer.pkl')
+        model_path_default = os.path.join(self.model_dir, 'fake_review_model.pkl')
+        vec_path_default = os.path.join(self.model_dir, 'tfidf_vectorizer.pkl')
 
         # 避免使用 os.path.exists 造成 TOCTOU 问题，直接尝试加载
         try:
-            logger.info(f"Loading latest model from {model_path_latest}...")
+            logger.info(f"正在从 {model_path_latest} 加载最新模型...")
             self.model = joblib.load(model_path_latest)
             self.vectorizer = joblib.load(vec_path_latest)
         except Exception as latest_exc:
             logger.warning(
-                f"Failed to load latest model from {model_dir}, falling back to default. "
-                f"Reason: {latest_exc}"
+                f"无法从 {self.model_dir} 加载最新模型，回退到默认模型。原因: {latest_exc}"
             )
             try:
-                logger.info(f"Loading default model from {model_path_default}...")
+                logger.info(f"正在从 {model_path_default} 加载默认模型...")
                 self.model = joblib.load(model_path_default)
                 self.vectorizer = joblib.load(vec_path_default)
             except Exception as default_exc:
+                logger.error(f"加载默认模型失败: {default_exc}")
                 raise FileNotFoundError(
-                    f"No model found in {model_dir}. Please run training first."
+                    f"在 {self.model_dir} 中未找到模型。请先运行训练。"
                 ) from default_exc
 
         # Validate loaded objects to ensure they provide expected methods
         if not hasattr(self.model, "predict"):
-            logger.error("Loaded model object is missing required 'predict' method.")
-            raise TypeError("Loaded fake review model is incompatible: missing 'predict' method.")
+            logger.error("加载的模型对象缺少必要的 'predict' 方法。")
+            raise TypeError("加载的虚假评论模型不兼容: 缺少 'predict' 方法。")
 
         if not hasattr(self.vectorizer, "transform"):
-            logger.error("Loaded vectorizer object is missing required 'transform' method.")
-            raise TypeError("Loaded TF-IDF vectorizer is incompatible: missing 'transform' method.")
+            logger.error("加载的向量化器对象缺少必要的 'transform' 方法。")
+            raise TypeError("加载的 TF-IDF 向量化器不兼容: 缺少 'transform' 方法。")
+
     def predict(self, text):
         """
         分析单条评论
@@ -82,7 +84,14 @@ class FakeReviewPredictor:
             # }
         """
         if not text:
-            return {"error": "Empty text"}
+            return {
+                "text": text if text is not None else "",
+                "label": "Unknown",
+                "is_fake": False,
+                "confidence": 0.0,
+                "sentiment_score": 0.5,
+                "error": "Empty text"
+            }
 
         # 1. 特征提取
         # TF-IDF
@@ -136,7 +145,7 @@ def _run_self_tests(predictor: FakeReviewPredictor) -> None:
     }
 
     for name, text in test_cases.items():
-        logger.info(f"[SELF-TEST] Running case '{name}'")
+        logger.info(f"[自检] 正在运行测试用例 '{name}'")
         result = predictor.predict(text)
 
         # Basic structural checks
@@ -149,7 +158,7 @@ def _run_self_tests(predictor: FakeReviewPredictor) -> None:
         assert isinstance(result["confidence"], float), "confidence should be a float"
         assert isinstance(result["sentiment_score"], float), "sentiment_score should be a float"
 
-    logger.info("[SELF-TEST] All basic FakeReviewPredictor.predict() checks passed.")
+    logger.info("[自检] FakeReviewPredictor.predict() 所有基本检查通过。")
 
 
 if __name__ == "__main__":
@@ -171,6 +180,6 @@ if __name__ == "__main__":
         logger.info("\n--- 评论分析结果 ---")
         for review in test_reviews:
             result = predictor.predict(review)
-            logger.info(f"Data: {result}")
+            logger.info(f"数据: {result}")
     except Exception as e:
-        logger.error(f"Error: {e}")
+        logger.error(f"错误: {e}")
