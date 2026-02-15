@@ -94,10 +94,11 @@ FakeReviewGuard/
 │   ├── constants/          # 数据格式、状态码、错误信息等常量
 │   └── utils/              # 通用的文本处理、数据验证、日志等工具函数
 ├── docs/                    # 文档目录
-│   ├── sql/                 # 数据库SQL脚本（init_db.py 使用）
-│   │   └── schema.sql       # 建表SQL
-│   └── database/            # 数据库设计文档
-│       └── ERD.png         # 实体关系图
+│   ├── database/               # 数据库文档
+│   │   ├── schema.sql         # 建表SQL
+│   │   └── ERD.png 
+│   └── logs/                   # 系统日志
+│       └── app.log            # 应用运行日志 
 ├── tests/                   # 测试代码
 ├── requirements.txt         # Python依赖
 ├── README.md               # 项目说明
@@ -218,12 +219,14 @@ def test_sentiment_analysis():
 ```python
 # 评论数据格式
 {
-    "id": "12345",
+    "id": "1",                    # 原始评论ID (自增主键)
+    "task_id": "1001",            # 关联的任务ID
+    "original_comment_id": "123", # 平台原始评论ID
     "product": "商品名",
     "extract": "评论内容",
     "score": 5,
     "source": "评论来源",
-    "time": "2025-01-01 10:00:00"
+    "comment_time": "2025-01-01 10:00:00"
 }
 
 # 分析结果格式
