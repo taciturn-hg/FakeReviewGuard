@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="hero text-center mb-5">
+    <div class="container">
+        <h1 class="display-4 fw-bold mb-4">守护每一份真实评价</h1>
+        <p class="lead mb-5">基于深度学习的虚假评论检测系统，帮助商家和消费者识别真实声音。</p>
+        <div class="d-flex justify-content-center gap-3">
+            <a href="/analyze" class="btn btn-light btn-lg px-5 fw-bold text-primary">立即检测</a>
+            <a href="/dashboard" class="btn btn-outline-light btn-lg px-5">查看数据</a>
+        </div>
+    </div>
+</section>
+
+<div class="container my-5">
+    <div class="row g-4 text-center">
+        <div class="col-md-4">
+            <div class="card h-100 p-4">
+                <div class="card-body">
+                    <i class="fas fa-search feature-icon"></i>
+                    <h3 class="h5 card-title">精准识别</h3>
+                    <p class="card-text text-muted">利用先进的 NLP 模型，精准识别机器生成或恶意刷单的虚假评论。</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card h-100 p-4">
+                <div class="card-body">
+                    <i class="fas fa-chart-line feature-icon"></i>
+                    <h3 class="h5 card-title">多维分析</h3>
+                    <p class="card-text text-muted">提供单条评论检测、商品整体评分分析以及平台趋势监控。</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card h-100 p-4">
+                <div class="card-body">
+                    <i class="fas fa-bolt feature-icon"></i>
+                    <h3 class="h5 card-title">实时响应</h3>
+                    <p class="card-text text-muted">毫秒级响应速度，支持高并发检测请求，即时反馈结果。</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
