@@ -1,14 +1,15 @@
 import sys
 import os
+from pathlib import Path
 from sqlalchemy import text
 
 # 将项目根目录添加到 python path
-current_dir = os.path.dirname(os.path.abspath(__file__))
+current_dir = Path(__file__).resolve().parent
 # current_dir 是 shared/utils，回退两层是项目根目录
-project_root = os.path.dirname(os.path.dirname(current_dir))
+project_root = current_dir.parent.parent
 
-if project_root not in sys.path:
-    sys.path.append(project_root)
+if str(project_root) not in sys.path:
+    sys.path.append(str(project_root))
 
 from shared.config.database import engine
 from shared.utils.logger import logger
@@ -17,14 +18,14 @@ def init_tables_from_sql():
     """
     遍历 docs/database/ 目录下所有 .sql 文件并执行建表
     """
-    sql_dir = os.path.join(project_root, "docs", "database")
+    sql_dir = project_root / "docs" / "database"
     
     if not os.path.exists(sql_dir):
         logger.error(f"找不到 SQL 目录: {sql_dir}")
         return
 
     # 获取所有 .sql 文件并排序（确保执行顺序，比如 01_xxx.sql, 02_xxx.sql）
-    sql_files = sorted([f for f in os.listdir(sql_dir) if f.endswith('.sql')])
+    sql_files = sorted([f for f in sql_dir.iterdir() if f.suffix == '.sql'])
     
     if not sql_files:
         logger.warning(f"目录 {sql_dir} 下没有找到 .sql 文件")
@@ -39,7 +40,7 @@ def init_tables_from_sql():
                 file_path = os.path.join(sql_dir, sql_file)
                 logger.info(f"正在执行文件: {sql_file}")
                 
-                with open(file_path, "r", encoding="utf-8") as f:
+                with open(sql_file, "r", encoding="utf-8") as f:
                     sql_content = f.read()
 
                 # 分割 SQL 语句
