@@ -39,6 +39,8 @@ class JDCommentSpider:
         self.status = 1 # 1: 进行中, 0: 报错, 2: 已完成
         self.db_generator = None
         self.db = None
+        self.product_title = ""
+        self.keep_browser_open = False
 
         # 数据库连接逻辑：优先使用传入的 db，否则尝试自动连接
         if db:
@@ -65,6 +67,91 @@ class JDCommentSpider:
         
         init_tables_from_sql()
 
+    def _handle_login_redirect(self):
+        """处理登录跳转逻辑"""
+        if "passport.jd.com" in self.page.url or "登录" in self.page.title:
+            logger.warning("检测到需要登录，暂停运行。")
+            logger.warning("请在浏览器中手动完成登录。")
+            
+            # 更新任务状态为 4 (未登录)，并重置 resume_signal 为 0
+            self._update_task_status(4)
+            if self.db:
+                try:
+                    self.db.execute(
+                        text("UPDATE 00_crawler_tasks SET resume_signal = 0 WHERE task_id = :task_id"),
+                        {"task_id": self.task_id}
+                    )
+                    self.db.commit()
+                except Exception as e:
+                    logger.error(f"重置 resume_signal 失败: {e}")
+            
+            # 阻塞等待数据库 resume_signal 变为 1 或用户控制台输入
+            logger.info(f"等待用户登录... (当前任务状态: 4, 等待 resume_signal=1)")
+            
+            while True:
+                time.sleep(2) # 轮询间隔
+                
+                # 1. 检查数据库 resume_signal 字段
+                if self.db:
+                    try:
+                        # 每次查询前需要提交一次事务以获取最新数据
+                        self.db.commit() 
+                        result = self.db.execute(
+                            text("SELECT resume_signal FROM 00_crawler_tasks WHERE task_id = :task_id"),
+                            {"task_id": self.task_id}
+                        ).fetchone()
+                        
+                        if result and result[0] == 1:
+                            logger.info("检测到 resume_signal=1，准备检查登录状态...")
+                            
+                            # 再次检测是否还在登录页面
+                            if "passport.jd.com" in self.page.url:
+                                logger.warning("检测到 resume_signal=1，但页面仍处于登录页。重置 resume_signal=0 并继续等待...")
+                                # 重置 resume_signal 为 0，防止重复触发，并继续循环等待下一次信号
+                                try:
+                                    self.db.execute(
+                                        text("UPDATE 00_crawler_tasks SET resume_signal = 0 WHERE task_id = :task_id"),
+                                        {"task_id": self.task_id}
+                                    )
+                                    self.db.commit()
+                                except Exception as e:
+                                    logger.error(f"重置 resume_signal 失败: {e}")
+                                continue # 继续循环
+                            else:
+                                logger.info("登录状态校验通过，准备恢复爬取...")
+                                # 将 resume_signal 重置为 0
+                                try:
+                                    self.db.execute(
+                                        text("UPDATE 00_crawler_tasks SET resume_signal = 0 WHERE task_id = :task_id"),
+                                        {"task_id": self.task_id}
+                                    )
+                                    self.db.commit()
+                                except Exception as e:
+                                    logger.error(f"恢复后重置 resume_signal 失败: {e}")
+                                break # 跳出循环，恢复爬虫
+                                
+                    except Exception as e:
+                        logger.warning(f"轮询 resume_signal 失败: {e}")
+                                
+                    except Exception as e:
+                        logger.warning(f"轮询 resume_signal 失败: {e}")
+
+                # 2. 保留控制台输入作为备用方案
+                # 注意：由于 input 是阻塞的，如果这里启用 input，上面的数据库轮询将无法工作。
+                # 为了同时支持，这里仅使用数据库轮询。
+                # 如果需要控制台支持，可以使用非阻塞输入库，但通常后端控制更为重要。
+                # print("Waiting for resume_signal...", end='\r')
+            
+            # 恢复任务状态为 1 (进行中)
+            self._update_task_status(1)
+            
+            # 恢复爬取流程
+            logger.info("重启爬取流程...")
+            self.page.get(self.product_url)
+            self.start()
+            return True
+        return False
+
     def start(self):
         """开始爬取流程"""
         with ExecutionTimer(f"爬虫任务(TaskID: {self.task_id})"):
@@ -73,12 +160,58 @@ class JDCommentSpider:
                 self._update_task_status(1)
                 logger.info(f"开始爬取: {self.product_url}, Task ID: {self.task_id}")
                 
+                # 2. 访问页面 (先访问才能检测)
                 self.page.get(self.product_url)
+                
+                # 3. 最早的登录检测点：页面加载完成后立即检查
+                if self._handle_login_redirect():
+                    return
+                    
+                # 4. 开启监听，并刷新页面以触发数据包
+                self.page.listen.start('functionId=pc_detailpage_wareBusiness')
+                self.page.refresh() # 刷新以重新触发请求
+                
+                # 尝试获取商品标题
+                try:
+                    res = self.page.listen.wait(timeout=10)
+                    if res:
+                        data = res.response.body
+                        self.product_title = data.get('skuHeadVO', {}).get('skuTitle', '')
+                        logger.info(f"获取到商品标题: {self.product_title}")
+                    else:
+                        logger.warning("未获取到商品标题数据包")
+                except Exception as e:
+                    logger.warning(f"获取商品标题失败: {e}")
+                
+                # 2. 切换监听目标到评论数据包
                 self.page.listen.start('client.action')
 
                 # 打开评论弹窗
-                if not self._open_comment_dialog():
-                    # 检查是否被反爬拦截跳转到了首页
+                # 优先检查是否跳转到了登录页面 (因为点击按钮可能会触发跳转)
+                if self._handle_login_redirect():
+                    return
+
+                # 尝试打开评论弹窗，如果失败且检测到登录页，立即进入等待
+                is_dialog_opened = False
+                try:
+                    if self.page.ele('css:.all-btn'):
+                        self.page.ele('css:.all-btn').click()
+                        # 再次检测登录跳转
+                        if self._handle_login_redirect():
+                            return
+                            
+                        self.page.wait.ele_displayed('text:商品评价', timeout=3)
+                        is_dialog_opened = True
+                except Exception:
+                    pass
+
+                # 再次检查是否跳转到了登录页面
+                if self._handle_login_redirect():
+                    return
+
+                if not is_dialog_opened:
+                    logger.warning("未找到'查看全部评价'按钮或打开失败")
+                    # 再次确认不是反爬拦截
                     if self.page.url.startswith("https://www.jd.com") or self.page.title == "京东(JD.COM)-正品低价、品质保障、配送及时、轻松购物！":
                         logger.warning("检测到被反爬拦截跳转至京东首页，尝试重启爬虫...")
                         self.page.quit()
