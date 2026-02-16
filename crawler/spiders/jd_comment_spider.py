@@ -39,6 +39,8 @@ class JDCommentSpider:
         self.status = 1 # 1: 进行中, 0: 报错, 2: 已完成
         self.db_generator = None
         self.db = None
+        self.product_title = ""
+        self.keep_browser_open = False
 
         # 数据库连接逻辑：优先使用传入的 db，否则尝试自动连接
         if db:
@@ -73,11 +75,37 @@ class JDCommentSpider:
                 self._update_task_status(1)
                 logger.info(f"开始爬取: {self.product_url}, Task ID: {self.task_id}")
                 
+                # 1. 开启监听，获取商品标题
+                self.page.listen.start('functionId=pc_detailpage_wareBusiness')
+                
                 self.page.get(self.product_url)
+                
+                # 尝试获取商品标题
+                try:
+                    res = self.page.listen.wait(timeout=10)
+                    if res:
+                        data = res.response.body
+                        self.product_title = data.get('skuHeadVO', {}).get('skuTitle', '')
+                        logger.info(f"获取到商品标题: {self.product_title}")
+                    else:
+                        logger.warning("未获取到商品标题数据包")
+                except Exception as e:
+                    logger.warning(f"获取商品标题失败: {e}")
+                
+                # 2. 切换监听目标到评论数据包
                 self.page.listen.start('client.action')
 
                 # 打开评论弹窗
                 if not self._open_comment_dialog():
+                    # 检查是否跳转到了登录页面
+                    if "passport.jd.com" in self.page.url or "登录" in self.page.title:
+                        logger.warning("检测到需要登录，请手动登录京东账号。")
+                        logger.warning("浏览器将保持打开状态，请登录后再重新运行爬虫。")
+                        self.keep_browser_open = True
+                        # 状态打点：失败 (Failed) - 或者可以定义一个新的状态码表示需要人工干预
+                        self._update_task_status(3)
+                        return
+
                     # 检查是否被反爬拦截跳转到了首页
                     if self.page.url.startswith("https://www.jd.com") or self.page.title == "京东(JD.COM)-正品低价、品质保障、配送及时、轻松购物！":
                         logger.warning("检测到被反爬拦截跳转至京东首页，尝试重启爬虫...")
@@ -278,7 +306,7 @@ class JDCommentSpider:
                 item = {
                     'task_id': self.task_id,
                     'original_comment_id': str(index.get('id', comment_info.get('commentId', ''))),
-                    'product': comment_info.get('productSpecifications', ''),
+                    'product': self.product_title,
                     'extract': comment_info.get('commentData', ''),
                     'score': int(comment_info.get('commentScore', 0)),
                     'source': '京东网页',
@@ -317,8 +345,11 @@ class JDCommentSpider:
                 logger.error(f"关闭数据库连接异常: {e}")
         
         try:
-            self.page.quit()
-            logger.info("浏览器已关闭")
+            if not self.keep_browser_open:
+                self.page.quit()
+                logger.info("浏览器已关闭")
+            else:
+                logger.info("保留浏览器窗口以进行人工操作")
         except Exception as e:
             logger.warning(f"关闭浏览器失败: {e}")
 
