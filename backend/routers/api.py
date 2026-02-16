@@ -27,6 +27,21 @@ def start_task(request: ProductScoreRequest, db: Session = Depends(get_db)):
     第一步：启动爬虫任务，返回 task_id
     """
     try:
+        # 1. 如果没有强制重启，先检查是否已存在完成的任务
+        if not request.force_restart:
+            existing_task = db.query(CrawlerTask).filter(
+                CrawlerTask.product_url == request.product_url,
+                CrawlerTask.status == 2  # 已完成
+            ).order_by(CrawlerTask.created_at.desc()).first()
+            
+            if existing_task:
+                return {
+                    "task_id": existing_task.task_id, 
+                    "status": "exists",
+                    "message": "该商品数据已存在"
+                }
+
+        # 2. 启动新任务
         task_id = CrawlerService.start_crawl_task(request.product_url, db)
         return {"task_id": task_id, "status": "started"}
     except Exception as e:

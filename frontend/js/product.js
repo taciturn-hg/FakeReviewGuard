@@ -18,11 +18,33 @@ document.addEventListener('DOMContentLoaded', () => {
     // 模态框元素
     const loginModalEl = document.getElementById('loginModal');
     const loginModal = new bootstrap.Modal(loginModalEl, { backdrop: 'static', keyboard: false });
+    const existTaskModalEl = document.getElementById('existTaskModal');
+    const existTaskModal = new bootstrap.Modal(existTaskModalEl, { backdrop: 'static', keyboard: false });
     const loggedInBtn = document.getElementById('loggedInBtn');
     const stopCrawlerBtn = document.getElementById('stopCrawlerBtn');
+    const useExistingBtn = document.getElementById('useExistingBtn');
+    const restartTaskBtn = document.getElementById('restartTaskBtn');
     let isWaitingForLogin = false;
+    let pendingTaskId = null; // 用于存储待确认的任务ID
+    let pendingProductUrl = null; // 用于存储待确认的商品链接
 
     // 绑定模态框按钮事件
+    if (useExistingBtn) {
+        useExistingBtn.addEventListener('click', async () => {
+            if (!pendingTaskId) return;
+            existTaskModal.hide();
+            await fetchAndDisplayResult(pendingTaskId);
+        });
+    }
+
+    if (restartTaskBtn) {
+        restartTaskBtn.addEventListener('click', async () => {
+            if (!pendingProductUrl) return;
+            existTaskModal.hide();
+            await startAnalysis(pendingProductUrl, true);
+        });
+    }
+
     if (loggedInBtn) {
         loggedInBtn.addEventListener('click', async () => {
             const taskId = parseInt(productResult.dataset.taskId);
@@ -297,37 +319,53 @@ document.addEventListener('DOMContentLoaded', () => {
         );
     });
 
-    searchBtn.addEventListener('click', async () => {
-        const productUrl = productIdInput.value.trim();
-        if (!productUrl) {
-            alert('请输入商品链接');
-            return;
-        }
-
-        if (!productUrl.startsWith('http')) {
-            alert('请输入有效的商品链接 (以 http 开头)');
-            return;
-        }
-
+    async function startAnalysis(productUrl, forceRestart = false) {
         searchBtn.disabled = true;
         searchBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>启动分析任务...';
         productResult.classList.add('d-none');
 
         try {
             // 1. 启动任务
-            const startRes = await ReviewAPI.startTask(productUrl);
+            const startRes = await ReviewAPI.startTask(productUrl, forceRestart);
+            
+            // 检查是否已存在
+            if (startRes.status === 'exists') {
+                pendingTaskId = startRes.task_id;
+                pendingProductUrl = productUrl;
+                existTaskModal.show();
+                searchBtn.disabled = false;
+                searchBtn.innerHTML = '<i class="fas fa-search me-2"></i>分析';
+                return;
+            }
+            
             const taskId = startRes.task_id;
             console.log(`Task started: ${taskId}`);
             
             // 2. 轮询状态
             await pollTaskStatus(taskId);
             
-            // 3. 获取结果
+            // 3. 获取并显示结果
+            await fetchAndDisplayResult(taskId);
+            
+        } catch (error) {
+            console.error('Analysis failed:', error);
+            alert(`分析失败: ${error.message}`);
+        } finally {
+            if (!pendingTaskId) { // 如果不是等待确认状态，则恢复按钮
+                searchBtn.disabled = false;
+                searchBtn.innerHTML = '<i class="fas fa-search me-2"></i>分析';
+            }
+        }
+    }
+
+    async function fetchAndDisplayResult(taskId) {
+        try {
             const result = await ReviewAPI.getTaskResult(taskId);
             lastResult = result;
             
             // Show result
             productResult.classList.remove('d-none');
+            productResult.dataset.taskId = taskId; // 保存当前任务ID
             
             // Update data
             trustScoreEl.textContent = result.trust_score;
@@ -336,7 +374,8 @@ document.addEventListener('DOMContentLoaded', () => {
             productNameEl.textContent = result.product_name || "未知商品";
             
             // 显示 URL (截断)
-            resProductIdEl.textContent = productUrl.length > 30 ? productUrl.substring(0, 30) + '...' : productUrl;
+            const displayUrl = productIdInput.value.trim() || result.product_url || "";
+            resProductIdEl.textContent = displayUrl.length > 30 ? displayUrl.substring(0, 30) + '...' : displayUrl;
             
             totalReviewsEl.textContent = result.total_reviews.toLocaleString();
             fakeCountEl.textContent = result.fake_count.toLocaleString();
@@ -367,13 +406,28 @@ document.addEventListener('DOMContentLoaded', () => {
             
             // 渲染图表
             renderSentimentChart(result.positive_count, result.negative_count, result.neutral_count);
-
+            
         } catch (error) {
-            console.error('Analysis failed:', error);
-            alert(`分析失败: ${error.message}`);
+            console.error("获取结果失败:", error);
+            alert("获取结果失败: " + error.message);
         } finally {
             searchBtn.disabled = false;
             searchBtn.innerHTML = '<i class="fas fa-search me-2"></i>分析';
         }
+    }
+
+    searchBtn.addEventListener('click', async () => {
+        const productUrl = productIdInput.value.trim();
+        if (!productUrl) {
+            alert('请输入商品链接');
+            return;
+        }
+
+        if (!productUrl.startsWith('http')) {
+            alert('请输入有效的商品链接 (以 http 开头)');
+            return;
+        }
+
+        await startAnalysis(productUrl);
     });
 });

@@ -91,6 +91,26 @@
     </div>
 </div>
 
+<!-- 任务存在确认模态框 -->
+<div class="modal fade" id="existTaskModal" tabindex="-1" aria-labelledby="existTaskModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="existTaskModalLabel">提示</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>该商品数据已存在，是否继续爬取？</p>
+                <p class="text-muted small">选择"是"将重新爬取最新评论；选择"否"将直接查看现有分析结果。</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" id="useExistingBtn">否</button>
+                <button type="button" class="btn btn-primary" id="restartTaskBtn">是</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 {% endblock %}
 
 {% block scripts %}

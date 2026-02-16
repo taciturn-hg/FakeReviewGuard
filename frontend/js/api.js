@@ -30,11 +30,14 @@ class ReviewAPI {
     }
 
     // 1. 启动任务
-    static async startTask(productUrl) {
+    static async startTask(productUrl, forceRestart = false) {
         const response = await fetch('/api/v1/task/start', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ product_url: productUrl })
+            body: JSON.stringify({ 
+                product_url: productUrl,
+                force_restart: forceRestart
+            })
         });
         return this._handleResponse(response);
     }
