@@ -65,6 +65,47 @@ class JDCommentSpider:
         
         init_tables_from_sql()
 
+    def _handle_login_redirect(self):
+        """处理登录跳转逻辑"""
+        if "passport.jd.com" in self.page.url or "登录" in self.page.title:
+            logger.warning("检测到需要登录，暂停运行。")
+            logger.warning("请在浏览器中手动完成登录。")
+            
+            # 更新任务状态为 4 (未登录)
+            self._update_task_status(4)
+            
+            # 阻塞等待后端更新状态或用户在控制台输入
+            logger.info("进入等待模式: 请在浏览器登录完成后，通过后端将任务状态更新为 1 以恢复爬取")
+            
+            while True:
+                # 轮询数据库状态
+                if self.db:
+                    try:
+                        # 每次查询前提交事务，确保读取到最新数据
+                        self.db.commit()
+                        result = self.db.execute(
+                            text("SELECT status FROM 00_crawler_tasks WHERE task_id = :task_id"),
+                            {"task_id": self.task_id}
+                        ).fetchone()
+                        
+                        if result and result[0] == 1:
+                            logger.info("检测到后端已将状态更新为 1，准备恢复爬取...")
+                            break
+                    except Exception as e:
+                        logger.warning(f"轮询状态失败: {e}")
+
+                time.sleep(2)
+            
+            # 恢复任务状态为 1 (进行中) - 实际上数据库已经是1了，这里确认一下内存状态
+            self.status = 1
+            
+            # 恢复爬取流程
+            logger.info("重启爬取流程...")
+            self.page.get(self.product_url)
+            self.start()
+            return True
+        return False
+
     def start(self):
         """开始爬取流程"""
         with ExecutionTimer(f"爬虫任务(TaskID: {self.task_id})"):
@@ -73,12 +114,55 @@ class JDCommentSpider:
                 self._update_task_status(1)
                 logger.info(f"开始爬取: {self.product_url}, Task ID: {self.task_id}")
                 
+                # 1. 开启监听，获取商品标题
+                self.page.listen.start('functionId=pc_detailpage_wareBusiness')
                 self.page.get(self.product_url)
+
+                # 尝试获取商品标题
+                try:
+                    res = self.page.listen.wait(timeout=10)
+                    if res:
+                        data = res.response.body
+                        self.product_title = data.get('skuHeadVO', {}).get('skuTitle', '')
+                        logger.info(f"获取到商品标题: {self.product_title}")
+                    else:
+                        logger.warning("未获取到商品标题数据包")
+                except Exception as e:
+                    logger.warning(f"获取商品标题失败: {e}")
+
+                # 0. 最早的登录检测点：页面加载完成后立即检查
+                if self._handle_login_redirect():
+                    return
+                
+                # 2. 切换监听目标到评论数据包
                 self.page.listen.start('client.action')
 
                 # 打开评论弹窗
-                if not self._open_comment_dialog():
-                    # 检查是否被反爬拦截跳转到了首页
+                # 优先检查是否跳转到了登录页面 (因为点击按钮可能会触发跳转)
+                if self._handle_login_redirect():
+                    return
+
+                # 尝试打开评论弹窗，如果失败且检测到登录页，立即进入等待
+                is_dialog_opened = False
+                try:
+                    if self.page.ele('css:.all-btn'):
+                        self.page.ele('css:.all-btn').click()
+                        # 再次检测登录跳转
+                        if self._handle_login_redirect():
+                            return
+                            
+                        self.page.wait.ele_displayed('text:商品评价', timeout=3)
+                        is_dialog_opened = True
+                except Exception:
+                    pass
+
+                # 再次检查是否跳转到了登录页面
+                if self._handle_login_redirect():
+                    return
+
+                if not is_dialog_opened:
+                    logger.warning("未找到'查看全部评价'按钮或打开失败")
+                    # 再次确认不是反爬拦截
                     if self.page.url.startswith("https://www.jd.com") or self.page.title == "京东(JD.COM)-正品低价、品质保障、配送及时、轻松购物！":
                         logger.warning("检测到被反爬拦截跳转至京东首页，尝试重启爬虫...")
                         self.page.quit()
