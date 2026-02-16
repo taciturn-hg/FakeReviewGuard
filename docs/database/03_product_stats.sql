@@ -24,7 +24,7 @@ CREATE TABLE `03_product_stats` (
     -- 索引
     KEY idx_task_id (task_id),
     KEY idx_product (product),
-    KEY idx_created_at (created_at)
+    KEY idx_created_at (created_at),
 
     -- 外键约束
     FOREIGN KEY (task_id) REFERENCES 00_crawler_tasks(task_id) ON DELETE CASCADE
