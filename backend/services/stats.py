@@ -20,10 +20,11 @@ class StatsService:
             stats = db.query(
                 func.count(CommentAnalysis.id).label("total"),
                 func.sum(CommentAnalysis.is_fake).label("fake_sum"), 
-                func.avg(CommentAnalysis.sentiment_score).label("sentiment_avg")
+                func.avg(CommentAnalysis.sentiment_score).label("sentiment_avg"),
+                func.avg(CommentAnalysis.confidence).label("confidence_avg")
             ).filter(CommentAnalysis.task_id == task_id).first()
             
-            if not stats or stats.total == 0:
+            if not stats:
                 logger.warning(f"任务 {task_id} 没有分析结果，无法统计")
                 return None
 
@@ -46,21 +47,27 @@ class StatsService:
             ).count()
 
             # 3. 计算比率
-            total = stats.total
+            total = stats.total or 0
             fake_count = int(stats.fake_sum or 0)
+            
+            # 从聚合结果获取平均置信度 (0-1)
+            confidence_val = float(stats.confidence_avg or 0)
+            
+            # 初始化所有变量，防止 UnboundLocalError
+            fake_ratio = 0.0
+            confidence = 0.0
+            positive_ratio = 0.0
+            negative_ratio = 0.0
+            neutral_ratio = 0.0
+            
             if total > 0:
                 fake_ratio = round((fake_count / total) * 100, 2)
-                trust_score = max(0, int(100 - fake_ratio))
+                # confidence 字段存储 0-1 的小数
+                confidence = round(confidence_val, 2)
                 
                 positive_ratio = round((positive_count / total) * 100, 2)
                 negative_ratio = round((negative_count / total) * 100, 2)
                 neutral_ratio = round((neutral_count / total) * 100, 2)
-            else:
-                fake_ratio = 0.0
-                trust_score = 0
-                positive_ratio = 0.0
-                negative_ratio = 0.0
-                neutral_ratio = 0.0
                 
             sentiment_score = round(float(stats.sentiment_avg or 0), 2)
             
@@ -76,7 +83,7 @@ class StatsService:
                 existing_stats.total_reviews = total
                 existing_stats.fake_count = fake_count
                 existing_stats.fake_ratio = fake_ratio
-                existing_stats.trust_score = trust_score
+                existing_stats.confidence = confidence
                 existing_stats.sentiment_score = sentiment_score
                 existing_stats.positive_reviews_count = positive_count
                 existing_stats.negative_reviews_count = negative_count
@@ -100,7 +107,7 @@ class StatsService:
                     total_reviews=total,
                     fake_count=fake_count,
                     fake_ratio=fake_ratio,
-                    trust_score=trust_score,
+                    confidence=confidence,
                     sentiment_score=sentiment_score,
                     positive_reviews_count=positive_count,
                     negative_reviews_count=negative_count,

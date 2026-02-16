@@ -9,6 +9,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const totalReviewsEl = document.getElementById('totalReviews');
     const fakeRatioEl = document.getElementById('fakeRatio');
     const fakeCountEl = document.getElementById('fakeCount');
+    const sentimentScoreEl = document.getElementById('sentimentScore');
     const productNameEl = document.getElementById('productName');
     const copyLinkBtn = document.getElementById('copyLinkBtn');
     let sentimentChartInstance = null;
@@ -268,6 +269,20 @@ document.addEventListener('DOMContentLoaded', () => {
             fakeCountEl.textContent = result.fake_count.toLocaleString();
             fakeRatioEl.textContent = `${(result.fake_ratio).toFixed(1)}%`;
             
+            // Update Sentiment Score
+            if (sentimentScoreEl) {
+                const sentimentScore = result.sentiment_score !== undefined ? result.sentiment_score : 0;
+                sentimentScoreEl.textContent = sentimentScore;
+                
+                if (sentimentScore > 0) {
+                    sentimentScoreEl.className = 'fw-bold text-success';
+                } else if (sentimentScore < 0) {
+                    sentimentScoreEl.className = 'fw-bold text-danger';
+                } else {
+                    sentimentScoreEl.className = 'fw-bold text-secondary';
+                }
+            }
+
             // Update Trust Score Color
             if (result.trust_score >= 80) {
                 trustScoreEl.className = 'fw-bold text-success';

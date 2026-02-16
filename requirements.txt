@@ -8,7 +8,9 @@ sqlalchemy
 pydantic-settings
 python-dotenv
 pymysql
-crawler
+
+# Crawler Dependencies
+DrissionPage
 
 # ML / Data Dependencies
 pandas
@@ -20,5 +22,3 @@ joblib
 jieba
 snownlp
 openai
-python-dotenv
-DrissionPage

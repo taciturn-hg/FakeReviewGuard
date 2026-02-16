@@ -68,8 +68,8 @@ def get_stats_detail(task_id: int, db: Session = Depends(get_db)):
         "total_reviews": stats.total_reviews,
         "fake_count": stats.fake_count,
         "real_count": stats.total_reviews - stats.fake_count,
-        "trust_score": stats.trust_score,
-        "sentiment_score": stats.sentiment_score,
+        "trust_score": round(float(stats.confidence or 0) * 100, 1),
+        "sentiment_score": float(stats.sentiment_score or 0),
         "positive_count": stats.positive_reviews_count,
         "neutral_count": stats.neutral_reviews_count,
         "negative_count": stats.negative_reviews_count
@@ -131,11 +131,12 @@ def get_result(task_id: int, db: Session = Depends(get_db)):
     
     return {
         "task_id": task_id,
-        "trust_score": stats.trust_score,
+        "trust_score": round(float(stats.confidence or 0) * 100, 1),
         "total_reviews": stats.total_reviews,
         "fake_ratio": stats.fake_ratio,
         "fake_count": stats.fake_count,
         "product_name": stats.product,
+        "sentiment_score": float(stats.sentiment_score or 0),
         "positive_count": stats.positive_reviews_count,
         "negative_count": stats.negative_reviews_count,
         "neutral_count": stats.neutral_reviews_count

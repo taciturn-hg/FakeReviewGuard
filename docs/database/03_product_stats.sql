@@ -1,4 +1,4 @@
-CREATE TABLE product_stats (
+CREATE TABLE `03_product_stats` (
     id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '统计结果ID',
     task_id BIGINT NOT NULL COMMENT '关联的任务ID',
     product VARCHAR(200) COMMENT '商品名称',
@@ -15,7 +15,7 @@ CREATE TABLE product_stats (
     
     fake_count INT DEFAULT 0 COMMENT '虚假评论数量',
     fake_ratio DECIMAL(5,2) COMMENT '虚假评论占比 (0-100%)',
-    trust_score INT COMMENT '可信度 (0-100)',
+    confidence DECIMAL(3,2) COMMENT '可信度 (0.00-1.00)',
     
     sentiment_score DECIMAL(3,2) COMMENT '平均情感分数 (-1.00 到 1.00)',
     

@@ -4,7 +4,7 @@ from datetime import datetime
 from shared.config.database import Base
 
 class CrawlerTask(Base):
-    __tablename__ = "crawler_tasks"
+    __tablename__ = "00_crawler_tasks"
 
     task_id = Column(Integer, primary_key=True, autoincrement=True, comment="任务ID")
     product_url = Column(String(500), nullable=False, comment="商品链接")
@@ -13,7 +13,7 @@ class CrawlerTask(Base):
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now, comment="更新时间")
 
 class RawComment(Base):
-    __tablename__ = "raw_comment"
+    __tablename__ = "01_raw_comment"
 
     id = Column(Integer, primary_key=True, autoincrement=True, comment="原始评论ID")
     task_id = Column(Integer, nullable=False, index=True, comment="关联的任务ID")
@@ -34,10 +34,10 @@ class RawComment(Base):
     )
 
 class CommentAnalysis(Base):
-    __tablename__ = "comment_analysis"
+    __tablename__ = "02_comment_analysis"
 
     id = Column(Integer, primary_key=True, autoincrement=True, comment="分析结果ID")
-    raw_comment_id = Column(Integer, ForeignKey("raw_comment.id"), nullable=False, comment="关联的原始评论ID")
+    raw_comment_id = Column(Integer, ForeignKey("01_raw_comment.id"), nullable=False, comment="关联的原始评论ID")
     task_id = Column(Integer, nullable=False, comment="关联的任务ID")
     extract = Column(String(500), comment="评论内容摘要")
     label = Column(String(50), comment="标签分类")
@@ -62,7 +62,7 @@ class CommentAnalysis(Base):
     )
 
 class ProductStats(Base):
-    __tablename__ = "product_stats"
+    __tablename__ = "03_product_stats"
 
     id = Column(Integer, primary_key=True, autoincrement=True, comment="统计结果ID")
     task_id = Column(Integer, nullable=False, index=True, comment="关联的任务ID")
@@ -80,7 +80,7 @@ class ProductStats(Base):
     
     fake_count = Column(Integer, default=0, comment="虚假评论数量")
     fake_ratio = Column(DECIMAL(5, 2), comment="虚假评论占比")
-    trust_score = Column(Integer, comment="可信度 (0-100)")
+    confidence = Column(DECIMAL(3, 2), comment="可信度 (0.00-1.00)")
     
     sentiment_score = Column(DECIMAL(3, 2), comment="平均情感分数")
     

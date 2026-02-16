@@ -38,6 +38,7 @@ class LLMService:
             logger.info(f"开始分析任务 TaskID={task_id}")
             
             # 1. 从数据库读取该任务的所有评论
+            # 更新查询语句中的表名引用，使用新的01_raw_comment格式
             comments = db.query(RawComment).filter(RawComment.task_id == task_id).all()
             total_comments = len(comments)
             logger.info(f"任务 {task_id} 共有 {total_comments} 条评论待分析")
@@ -64,14 +65,15 @@ class LLMService:
                             "is_fake": 1 if prediction["is_fake"] else 0,
                             "label": prediction["label"],
                             "extract": item.extract[:500],
-                            "confidence": prediction["confidence"],
-                            "sentiment_score": prediction["sentiment_score"],
+                            "confidence": round(prediction["confidence"], 4),
+                            "sentiment_score": round(prediction["sentiment_score"], 4),
                             "product": item.product
                         }
                         batch_results.append(result_entry)
                     
                     # 2.2 将 batch_results 存入 analysis_results 表
                     if batch_results:
+                        # 2.2.1 批量插入分析结果
                         db.bulk_insert_mappings(CommentAnalysis, batch_results)
                         db.commit()
                     

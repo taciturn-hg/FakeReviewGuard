@@ -11,7 +11,7 @@ if project_root not in sys.path:
     sys.path.append(project_root)
 
 from shared.utils.feature_extraction import get_sentiment_features, jieba_tokenizer
-from shared.utils import logger
+from shared.utils.logger import logger
 
 # 修复 joblib 加载时的 pickle 路径问题
 # 训练时 jieba_tokenizer 可能被保存为 __main__.jieba_tokenizer
@@ -49,9 +49,7 @@ class FakeReviewPredictor:
             self.model = joblib.load(model_path_latest)
             self.vectorizer = joblib.load(vec_path_latest)
         except Exception as latest_exc:
-            logger.warning(
-                f"无法从 {self.model_dir} 加载最新模型，回退到默认模型。原因: {latest_exc}"
-            )
+            logger.warning(f"无法从 {self.model_dir} 加载最新模型，回退到默认模型。原因: {latest_exc}")
             try:
                 logger.info(f"正在从 {model_path_default} 加载默认模型...")
                 self.model = joblib.load(model_path_default)

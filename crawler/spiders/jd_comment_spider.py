@@ -117,7 +117,7 @@ class JDCommentSpider:
         if self.db:
             try:
                 self.db.execute(
-                    text("UPDATE crawler_tasks SET status = :status WHERE task_id = :task_id"),
+                    text("UPDATE 00_crawler_tasks SET status = :status WHERE task_id = :task_id"),
                     {"status": status_code, "task_id": self.task_id}
                 )
                 self.db.commit()
@@ -159,6 +159,11 @@ class JDCommentSpider:
             # 重新实现 _fetch_page_data 的逻辑以包含循环等待和状态判断
             got_data, has_next_page = self._process_page_data()
             
+            if page_num >= 20:
+                logger.warning("已获取 20 页数据，停止继续获取")
+                has_next = False
+                break
+
             if not got_data:
                 consecutive_empty_pages += 1
                 logger.warning(f"第 {page_num} 页未获取到数据 (连续空页数: {consecutive_empty_pages})")
@@ -293,7 +298,7 @@ class JDCommentSpider:
             try:
                 self.db.execute(
                     text("""
-                        INSERT INTO raw_comment 
+                        INSERT INTO 01_raw_comment 
                         (task_id, original_comment_id, product, extract, score, source, comment_time) 
                         VALUES (:task_id, :original_comment_id, :product, :extract, :score, :source, :comment_time)
                     """),

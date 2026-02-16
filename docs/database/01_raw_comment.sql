@@ -1,4 +1,4 @@
-CREATE TABLE raw_comment (
+CREATE TABLE `01_raw_comment` (
     id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '原始评论ID',
     task_id BIGINT NOT NULL COMMENT '关联的任务ID',
     original_comment_id VARCHAR(255) COMMENT '平台原始评论ID',
