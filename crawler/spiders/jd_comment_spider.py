@@ -445,7 +445,7 @@ class JDCommentSpider:
                 item = {
                     'task_id': self.task_id,
                     'original_comment_id': str(index.get('id', comment_info.get('commentId', ''))),
-                    'product': comment_info.get('productSpecifications', ''),
+                    'product': self.product_title,
                     'extract': comment_info.get('commentData', ''),
                     'score': int(comment_info.get('commentScore', 0)),
                     'source': '京东网页',
