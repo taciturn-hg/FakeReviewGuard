@@ -51,6 +51,22 @@ class ReviewAPI {
         return this._handleResponse(response);
     }
     
+    // 4. 恢复任务 (已登录)
+    static async resumeCrawler(taskId) {
+        const response = await fetch(`/api/v1/task/resume/${taskId}`, {
+            method: 'POST'
+        });
+        return this._handleResponse(response);
+    }
+    
+    // 5. 停止任务
+    static async stopCrawler(taskId) {
+        const response = await fetch(`/api/v1/task/stop/${taskId}`, {
+            method: 'POST'
+        });
+        return this._handleResponse(response);
+    }
+    
     static async getStats(productId, chartType = 'all') {
         const response = await fetch(`/api/v1/stats?product_id=${productId}&chart_type=${chartType}`);
         return response.json();

@@ -101,34 +101,39 @@ class JDCommentSpider:
                             {"task_id": self.task_id}
                         ).fetchone()
                         
-                        if result and result[0] == 1:
-                            logger.info("检测到 resume_signal=1，准备检查登录状态...")
-                            
-                            # 再次检测是否还在登录页面
-                            if "passport.jd.com" in self.page.url:
-                                logger.warning("检测到 resume_signal=1，但页面仍处于登录页。重置 resume_signal=0 并继续等待...")
-                                # 重置 resume_signal 为 0，防止重复触发，并继续循环等待下一次信号
-                                try:
-                                    self.db.execute(
-                                        text("UPDATE 00_crawler_tasks SET resume_signal = 0 WHERE task_id = :task_id"),
-                                        {"task_id": self.task_id}
-                                    )
-                                    self.db.commit()
-                                except Exception as e:
-                                    logger.error(f"重置 resume_signal 失败: {e}")
-                                continue # 继续循环
-                            else:
-                                logger.info("登录状态校验通过，准备恢复爬取...")
-                                # 将 resume_signal 重置为 0
-                                try:
-                                    self.db.execute(
-                                        text("UPDATE 00_crawler_tasks SET resume_signal = 0 WHERE task_id = :task_id"),
-                                        {"task_id": self.task_id}
-                                    )
-                                    self.db.commit()
-                                except Exception as e:
-                                    logger.error(f"恢复后重置 resume_signal 失败: {e}")
-                                break # 跳出循环，恢复爬虫
+                        if result:
+                            signal_val = result[0]
+                            if signal_val == 2:
+                                logger.info("检测到 resume_signal=2，停止爬虫任务...")
+                                return 2
+                            elif signal_val == 1:
+                                logger.info("检测到 resume_signal=1，准备检查登录状态...")
+                                
+                                # 再次检测是否还在登录页面
+                                if "passport.jd.com" in self.page.url:
+                                    logger.warning("检测到 resume_signal=1，但页面仍处于登录页。重置 resume_signal=0 并继续等待...")
+                                    # 重置 resume_signal 为 0，防止重复触发，并继续循环等待下一次信号
+                                    try:
+                                        self.db.execute(
+                                            text("UPDATE 00_crawler_tasks SET resume_signal = 0 WHERE task_id = :task_id"),
+                                            {"task_id": self.task_id}
+                                        )
+                                        self.db.commit()
+                                    except Exception as e:
+                                        logger.error(f"重置 resume_signal 失败: {e}")
+                                    continue # 继续循环
+                                else:
+                                    logger.info("登录状态校验通过，准备恢复爬取...")
+                                    # 将 resume_signal 重置为 0
+                                    try:
+                                        self.db.execute(
+                                            text("UPDATE 00_crawler_tasks SET resume_signal = 0 WHERE task_id = :task_id"),
+                                            {"task_id": self.task_id}
+                                        )
+                                        self.db.commit()
+                                    except Exception as e:
+                                        logger.error(f"恢复后重置 resume_signal 失败: {e}")
+                                    break # 跳出循环，恢复爬虫
                                 
                     except Exception as e:
                         logger.warning(f"轮询 resume_signal 失败: {e}")
@@ -149,8 +154,8 @@ class JDCommentSpider:
             logger.info("重启爬取流程...")
             self.page.get(self.product_url)
             self.start()
-            return True
-        return False
+            return 1
+        return 0
 
     def start(self):
         """开始爬取流程"""
@@ -164,32 +169,45 @@ class JDCommentSpider:
                 self.page.get(self.product_url)
                 
                 # 3. 最早的登录检测点：页面加载完成后立即检查
-                if self._handle_login_redirect():
+                login_check = self._handle_login_redirect()
+                if login_check == 2: # 停止爬虫
+                    self._update_task_status(2)
                     return
+                elif login_check == 1: # 恢复登录，不需要return，继续往下走
+                    pass
+                elif login_check == 0: # 无需登录，继续
+                    pass
                     
                 # 4. 开启监听，并刷新页面以触发数据包
                 self.page.listen.start('functionId=pc_detailpage_wareBusiness')
                 self.page.refresh() # 刷新以重新触发请求
                 
                 # 尝试获取商品标题
-                try:
-                    res = self.page.listen.wait(timeout=10)
-                    if res:
-                        data = res.response.body
-                        self.product_title = data.get('skuHeadVO', {}).get('skuTitle', '')
-                        logger.info(f"获取到商品标题: {self.product_title}")
-                    else:
-                        logger.warning("未获取到商品标题数据包")
-                except Exception as e:
-                    logger.warning(f"获取商品标题失败: {e}")
+                for i in range(3):
+                    try:
+                        res = self.page.listen.wait(timeout=10)
+                        if res:
+                            data = res.response.body
+                            self.product_title = data.get('skuHeadVO', {}).get('skuTitle', '')
+                            logger.info(f"获取到商品标题: {self.product_title}")
+                            break # 成功获取到标题，跳出循环
+                        else:
+                            logger.warning(f"未获取到商品标题数据包, 第{i+1}次尝试")
+                    except Exception as e:
+                        logger.warning(f"获取商品标题失败: {e}")
                 
                 # 2. 切换监听目标到评论数据包
                 self.page.listen.start('client.action')
 
                 # 打开评论弹窗
                 # 优先检查是否跳转到了登录页面 (因为点击按钮可能会触发跳转)
-                if self._handle_login_redirect():
+                login_check = self._handle_login_redirect()
+                if login_check == 2:
+                    self._update_task_status(2)
                     return
+                elif login_check == 1:
+                    pass # 继续尝试打开评论
+
 
                 # 尝试打开评论弹窗，如果失败且检测到登录页，立即进入等待
                 is_dialog_opened = False
@@ -197,8 +215,12 @@ class JDCommentSpider:
                     if self.page.ele('css:.all-btn'):
                         self.page.ele('css:.all-btn').click()
                         # 再次检测登录跳转
-                        if self._handle_login_redirect():
+                        login_check = self._handle_login_redirect()
+                        if login_check == 2:
+                            self._update_task_status(2)
                             return
+                        elif login_check == 1:
+                            pass # 登录后继续等待弹窗
                             
                         self.page.wait.ele_displayed('text:商品评价', timeout=3)
                         is_dialog_opened = True
@@ -206,8 +228,14 @@ class JDCommentSpider:
                     pass
 
                 # 再次检查是否跳转到了登录页面
-                if self._handle_login_redirect():
+                login_check = self._handle_login_redirect()
+                if login_check == 2:
+                    self._update_task_status(2)
                     return
+                elif login_check == 1:
+                    # 如果登录后弹窗没开，可能需要重新尝试打开
+                    # 这里简单处理：如果恢复了，继续往下走，如果没有弹窗会触发后面的警告
+                    pass
 
                 if not is_dialog_opened:
                     logger.warning("未找到'查看全部评价'按钮或打开失败")
@@ -254,6 +282,7 @@ class JDCommentSpider:
                     {"status": status_code, "task_id": self.task_id}
                 )
                 self.db.commit()
+                logger.info(f"状态更新为: {self.status}")
             except Exception as e:
                 logger.error(f"更新任务状态失败: {e}")
                 self.db.rollback()

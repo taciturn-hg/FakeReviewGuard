@@ -32,6 +32,36 @@ def start_task(request: ProductScoreRequest, db: Session = Depends(get_db)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to start task: {str(e)}")
 
+@router.post("/task/resume/{task_id}")
+def resume_task(task_id: int, db: Session = Depends(get_db)):
+    """
+    恢复爬虫任务 (通知后端已登录)
+    """
+    task = db.query(CrawlerTask).filter(CrawlerTask.task_id == task_id).first()
+    if not task:
+        raise HTTPException(status_code=404, detail="任务不存在")
+    
+    # 更新 resume_signal 为 1
+    task.resume_signal = 1
+    db.commit()
+    
+    return {"status": "success", "message": "已发送恢复信号"}
+
+@router.post("/task/stop/{task_id}")
+def stop_task(task_id: int, db: Session = Depends(get_db)):
+    """
+    停止爬虫任务 (通知后端停止)
+    """
+    task = db.query(CrawlerTask).filter(CrawlerTask.task_id == task_id).first()
+    if not task:
+        raise HTTPException(status_code=404, detail="任务不存在")
+    
+    # 更新 resume_signal 为 2
+    task.resume_signal = 2
+    db.commit()
+    
+    return {"status": "success", "message": "已发送停止信号"}
+
 # 新增：模糊搜索商品
 @router.get("/stats/search")
 def search_products(keyword: str, db: Session = Depends(get_db)):
@@ -82,7 +112,7 @@ from shared.constants.status_codes import BusinessCode
 def check_status(task_id: int, db: Session = Depends(get_db)):
     """
     第二步：轮询任务状态
-    返回: status (0-失败, 1-爬虫进行中, 2-爬虫完成/分析中, 3-分析完成)
+    返回: status (0-失败, 1-爬虫进行中, 2-爬虫完成/分析中, 3-分析完成, 4-等待登录验证)
     """
     # 1. 检查爬虫状态
     crawler_status = CrawlerService.check_task_status(task_id)
@@ -92,6 +122,9 @@ def check_status(task_id: int, db: Session = Depends(get_db)):
     
     if crawler_status == 1:
         return {"status": 1, "message": "正在抓取评论数据..."}
+    
+    if crawler_status == 4:
+        return {"status": 4, "message": "等待登录验证"}
     
     # 2. 如果爬虫完成 (status=2)，触发/检查 LLM 分析
     try:
@@ -109,7 +142,7 @@ def check_status(task_id: int, db: Session = Depends(get_db)):
         
         return {"status": 0, "message": f"{Messages.ANALYSIS_FAILED}: {error_msg}"}
 
-from backend.models.sql_models import ProductStats
+from backend.models.sql_models import CrawlerTask, ProductStats
 
 from backend.services.stats import StatsService
 

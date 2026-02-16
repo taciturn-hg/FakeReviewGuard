@@ -63,10 +63,11 @@ class CrawlerService:
             task = db.query(CrawlerTask).filter(CrawlerTask.task_id == task_id).first()
             if task:
                 # 映射数据库状态到前端状态码
-                # DB: 0-等待, 1-进行, 2-完成, 3-失败
-                # API: 0-失败, 1-进行, 2-完成
+                # DB: 0-等待, 1-进行, 2-完成, 3-失败, 4-等待登录
+                # API: 0-失败, 1-进行, 2-完成, 4-等待登录
                 if task.status == 2: return 2
                 if task.status == 3: return 0
+                if task.status == 4: return 4
                 return 1 # 等待或进行中都算进行中
         except Exception:
             pass

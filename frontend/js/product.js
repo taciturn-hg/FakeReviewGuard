@@ -15,6 +15,72 @@ document.addEventListener('DOMContentLoaded', () => {
     let sentimentChartInstance = null;
     let lastResult = null;
 
+    // 模态框元素
+    const loginModalEl = document.getElementById('loginModal');
+    const loginModal = new bootstrap.Modal(loginModalEl, { backdrop: 'static', keyboard: false });
+    const loggedInBtn = document.getElementById('loggedInBtn');
+    const stopCrawlerBtn = document.getElementById('stopCrawlerBtn');
+    let isWaitingForLogin = false;
+
+    // 绑定模态框按钮事件
+    if (loggedInBtn) {
+        loggedInBtn.addEventListener('click', async () => {
+            const taskId = parseInt(productResult.dataset.taskId);
+            if (!taskId) return;
+            
+            try {
+                loggedInBtn.disabled = true;
+                loggedInBtn.textContent = '提交中...';
+                
+                await ReviewAPI.resumeCrawler(taskId);
+                
+                loginModal.hide();
+                isWaitingForLogin = false;
+                
+                // 重置按钮状态
+                loggedInBtn.disabled = false;
+                loggedInBtn.textContent = '我已登录';
+                
+            } catch (error) {
+                console.error("恢复任务失败:", error);
+                alert("恢复任务失败，请稍后重试: " + error.message);
+                loggedInBtn.disabled = false;
+                loggedInBtn.textContent = '我已登录';
+            }
+        });
+    }
+
+    if (stopCrawlerBtn) {
+        stopCrawlerBtn.addEventListener('click', async () => {
+            const taskId = parseInt(productResult.dataset.taskId);
+            if (!taskId) return;
+            
+            if (!confirm('确定要停止爬虫任务吗？')) {
+                return;
+            }
+
+            try {
+                stopCrawlerBtn.disabled = true;
+                stopCrawlerBtn.textContent = '停止中...';
+                
+                await ReviewAPI.stopCrawler(taskId);
+                
+                loginModal.hide();
+                isWaitingForLogin = false;
+                
+                // 重置按钮状态
+                stopCrawlerBtn.disabled = false;
+                stopCrawlerBtn.textContent = '停止爬虫';
+                
+            } catch (error) {
+                console.error("停止任务失败:", error);
+                alert("停止任务失败，请稍后重试: " + error.message);
+                stopCrawlerBtn.disabled = false;
+                stopCrawlerBtn.textContent = '停止爬虫';
+            }
+        });
+    }
+
     // 获取当前主题配置
     const getThemeConfig = () => {
         const styles = getComputedStyle(document.documentElement);
@@ -183,13 +249,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 try {
                     const statusRes = await ReviewAPI.checkStatus(taskId);
                     
-                    // 状态: 0-失败, 1-爬虫中, 2-分析中, 3-完成
+                    // 状态: 0-失败, 1-爬虫中, 2-分析中, 3-完成, 4-等待登录
                     if (statusRes.status === 0) {
                         clearInterval(interval);
                         reject(new Error(statusRes.message || '任务失败'));
                     } else if (statusRes.status === 3) {
                         clearInterval(interval);
                         resolve(statusRes);
+                    } else if (statusRes.status === 4) {
+                        if (!isWaitingForLogin) {
+                            isWaitingForLogin = true;
+                            productResult.dataset.taskId = taskId;
+                            loginModal.show();
+                        }
                     } else if (statusRes.status === 1) {
                         searchBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>正在抓取评论数据...';
                     } else if (statusRes.status === 2) {
@@ -204,7 +276,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     clearInterval(interval);
                     reject(err);
                 }
-            }, 2000); // 每 2 秒查一次
+            }, 500); // 每 500 毫秒查一次
         });
     }
 
