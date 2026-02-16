@@ -257,6 +257,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         clearInterval(interval);
                         resolve(statusRes);
                     } else if (statusRes.status === 4) {
+                        searchBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>等待用户登录...';
                         if (!isWaitingForLogin) {
                             isWaitingForLogin = true;
                             productResult.dataset.taskId = taskId;
