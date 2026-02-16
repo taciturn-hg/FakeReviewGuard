@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}FakeReviewGuard - 虚假评论检测系统{% endblock %}</title>
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            /* Light Theme (Default) */
+            --bg-body: #f8f9fa;
+            --bg-card: #ffffff;
+            --bg-header: #ffffff;
+            --text-main: #212529;
+            --text-muted: #6c757d;
+            --border-color: #dee2e6;
+            --primary-color: #0d6efd;
+            --input-bg: #ffffff;
+            --btn-primary-bg: #0d6efd;
+            --btn-primary-hover: #0b5ed7;
+            --chart-tooltip-bg: rgba(255, 255, 255, 0.9);
+            --chart-tooltip-text: #212529;
+        }
+
+        [data-theme="dark"] {
+            /* Dark Theme */
+            --bg-body: #0d1117;
+            --bg-card: #161b22;
+            --bg-header: #161b22;
+            --text-main: #c9d1d9;
+            --text-muted: #8b949e;
+            --border-color: #30363d;
+            --primary-color: #58a6ff;
+            --input-bg: #0d1117;
+            --btn-primary-bg: #238636;
+            --btn-primary-hover: #2ea043;
+            --chart-tooltip-bg: rgba(22, 27, 34, 0.9);
+            --chart-tooltip-text: #c9d1d9;
+        }
+
+        body { 
+            padding-top: 56px; 
+            background-color: var(--bg-body);
+            color: var(--text-main);
+            font-family: -apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans",Helvetica,Arial,sans-serif,"Apple Color Emoji","Segoe UI Emoji";
+            transition: background-color 0.3s, color 0.3s;
+        }
+        
+        .hero { background: linear-gradient(135deg, #1f6feb 0%, #238636 100%); color: white; padding: 4rem 0; }
+        
+        .card { 
+            background-color: var(--bg-card);
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            box-shadow: none;
+            transition: transform 0.2s, background-color 0.3s, border-color 0.3s; 
+        }
+        
+        .card:hover { transform: translateY(-2px); border-color: var(--text-muted); }
+        .feature-icon { font-size: 2.5rem; color: var(--primary-color); margin-bottom: 1rem; }
+
+        /* Dark Theme Overrides */
+        .navbar {
+            background-color: var(--bg-header) !important;
+            border-bottom: 1px solid var(--border-color);
+            transition: background-color 0.3s, border-color 0.3s;
+        }
+
+        .navbar-brand, .nav-link {
+            color: var(--text-main) !important;
+            transition: color 0.3s;
+        }
+        
+        /* Theme Toggle Button */
+        .theme-toggle {
+            cursor: pointer;
+            padding: 0.5rem;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background-color 0.2s;
+            color: var(--text-main);
+        }
+        .theme-toggle:hover {
+            background-color: var(--border-color);
+        }
+
+        .nav-link.active {
+            color: var(--primary-color) !important;
+            font-weight: 600;
+        }
+
+        .form-control {
+            background-color: var(--input-bg);
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            transition: background-color 0.3s, border-color 0.3s, color 0.3s, box-shadow 0.15s ease-in-out;
+        }
+
+        .form-control:focus {
+            background-color: var(--input-bg);
+            border-color: var(--primary-color);
+            color: var(--text-main);
+            box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.3);
+        }
+        
+        .form-control::placeholder {
+            color: var(--text-muted);
+        }
+
+        .btn-primary {
+            background-color: var(--btn-primary-bg);
+            border-color: rgba(240,246,252,0.1);
+            color: #ffffff;
+            transition: background-color 0.3s, border-color 0.3s, color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+        }
+
+        .btn-primary:hover {
+            background-color: var(--btn-primary-hover);
+            border-color: rgba(240,246,252,0.1);
+        }
+
+        .bg-light, .bg-white {
+            background-color: var(--bg-card) !important;
+            color: var(--text-main) !important;
+        }
+
+        .text-muted {
+            color: var(--text-muted) !important;
+        }
+        
+        .text-dark {
+            color: var(--text-main) !important;
+        }
+
+        .list-group-item {
+            background-color: var(--bg-card);
+            border-color: var(--border-color);
+            color: var(--text-main);
+            transition: background-color 0.3s, border-color 0.3s, color 0.3s;
+        }
+
+        .list-group-item:hover {
+            background-color: #1c2128;
+            color: var(--text-main);
+        }
+
+        footer {
+            background-color: var(--bg-header) !important;
+            border-top: 1px solid var(--border-color);
+            margin-top: 0 !important; /* Remove large margin if handled by py-4 */
+            transition: background-color 0.3s, border-color 0.3s, color 0.3s;
+        }
+        
+        /* Badges */
+        .badge.bg-light {
+            background-color: rgba(110, 118, 129, 0.4) !important;
+            color: var(--text-main) !important;
+        }
+        
+        .badge.bg-secondary {
+            background-color: rgba(110, 118, 129, 0.4) !important;
+        }
+
+        /* Alerts */
+        .alert-info {
+            background-color: rgba(56, 139, 253, 0.15);
+            border-color: rgba(56, 139, 253, 0.4);
+            color: var(--text-main);
+        }
+        
+        .alert-warning {
+            background-color: rgba(187, 128, 9, 0.15);
+            border-color: rgba(187, 128, 9, 0.4);
+            color: var(--text-main);
+        }
+
+        hr {
+            border-color: var(--border-color);
+            opacity: 1;
+        }
+
+        .progress {
+            background-color: var(--border-color);
+        }
+        
+        /* Modal */
+        .modal-content {
+            background-color: var(--bg-card);
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+        }
+        
+        .modal-header, .modal-footer {
+            border-color: var(--border-color);
+        }
+        
+        .btn-close {
+            filter: invert(1) grayscale(100%) brightness(200%);
+        }
+
+        /* Global Text & Element Transition */
+        h1, h2, h3, h4, h5, h6, p, span, label, i, a, button, input, textarea, select, div {
+            transition: color 0.3s, background-color 0.3s, border-color 0.3s, box-shadow 0.3s;
+        }
+    </style>
+    <script>
+        (function() {
+            const savedTheme = localStorage.getItem('theme') || 'light';
+            if (savedTheme === 'dark') {
+                document.documentElement.setAttribute('data-theme', 'dark');
+            }
+        })();
+    </script>
+    {% block head %}{% endblock %}
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
+        <div class="container">
+            <a class="navbar-brand" href="/"><i class="fas fa-shield-alt me-2"></i>FakeReviewGuard</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto align-items-center">
+                    <li class="nav-item">
+                        <a class="nav-link {% if page == 'home' %}active{% endif %}" href="/">首页</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if page == 'analyze' %}active{% endif %}" href="/analyze">评论检测</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if page == 'product' %}active{% endif %}" href="/product">商品分析</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if page == 'dashboard' %}active{% endif %}" href="/dashboard">数据大屏</a>
+                    </li>
+                    <li class="nav-item ms-2">
+                        <button class="btn btn-link nav-link theme-toggle" id="themeToggle" title="切换主题">
+                            <i class="fas fa-moon"></i>
+                        </button>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main>
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Footer -->
+    <footer class="py-4 mt-5">
+        <div class="container text-center text-muted">
+            <small>&copy; 2023 FakeReviewGuard. All rights reserved.</small>
+        </div>
+    </footer>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.2/dist/echarts.min.js"></script>
+    <!-- 我们的 API 封装 -->
+    <script src="/js/api.js"></script>
+    <script>
+        // 主题切换逻辑
+        document.addEventListener('DOMContentLoaded', () => {
+            const themeToggle = document.getElementById('themeToggle');
+            const icon = themeToggle.querySelector('i');
+            const html = document.documentElement;
+            
+            // 初始化图标状态（data-theme 已经在 head 中设置过了）
+            const currentTheme = html.getAttribute('data-theme') || 'light';
+            if (currentTheme === 'dark') {
+                icon.className = 'fas fa-sun';
+                themeToggle.setAttribute('title', '切换到亮色模式');
+            } else {
+                icon.className = 'fas fa-moon';
+                themeToggle.setAttribute('title', '切换到暗色模式');
+            }
+
+            themeToggle.addEventListener('click', () => {
+                const currentTheme = html.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+                const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+                setTheme(newTheme);
+            });
+
+            function setTheme(theme) {
+                if (theme === 'dark') {
+                    html.setAttribute('data-theme', 'dark');
+                    icon.className = 'fas fa-sun';
+                    themeToggle.setAttribute('title', '切换到亮色模式');
+                } else {
+                    html.removeAttribute('data-theme');
+                    icon.className = 'fas fa-moon';
+                    themeToggle.setAttribute('title', '切换到暗色模式');
+                }
+                localStorage.setItem('theme', theme);
+                
+                // 触发自定义事件，通知图表更新
+                window.dispatchEvent(new Event('themeChanged'));
+            }
+        });
+    </script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

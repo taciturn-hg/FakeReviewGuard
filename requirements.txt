@@ -9,6 +9,9 @@ pydantic-settings
 python-dotenv
 pymysql
 
+# Crawler Dependencies
+DrissionPage
+
 # ML / Data Dependencies
 pandas
 numpy
@@ -19,5 +22,3 @@ joblib
 jieba
 snownlp
 openai
-python-dotenv
-DrissionPage

@@ -1,4 +1,4 @@
-CREATE TABLE comment_analysis (
+CREATE TABLE `02_comment_analysis` (
     id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '分析结果ID',
     raw_comment_id BIGINT NOT NULL COMMENT '关联的原始评论ID',
     task_id BIGINT NOT NULL COMMENT '关联的任务ID',
@@ -19,7 +19,7 @@ CREATE TABLE comment_analysis (
     
     -- 外键约束
     CONSTRAINT fk_raw_comment FOREIGN KEY (raw_comment_id) 
-        REFERENCES raw_comment(id) ON DELETE RESTRICT,
+        REFERENCES `01_raw_comment`(id) ON DELETE RESTRICT,
         
     -- 数据约束
     CONSTRAINT chk_is_fake CHECK (is_fake IN (0, 1, 2)),

@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container py-5">
+    <h2 class="mb-4 text-center">数据监控大屏</h2>
+    
+    <!-- 1. 搜索区 -->
+    <div class="card shadow-sm mb-4" style="position: relative; z-index: 1050; overflow: visible;">
+        <div class="card-body">
+            <div class="row g-3 align-items-center">
+                <div class="col-auto">
+                    <label for="productSearch" class="col-form-label fw-bold">查找商品:</label>
+                </div>
+                <div class="col position-relative">
+                    <input type="text" id="productSearch" class="form-control" placeholder="输入商品名称关键字...">
+                    <!-- 搜索建议下拉框 -->
+                    <div id="searchResults" class="list-group position-absolute w-100 mt-1 shadow d-none"></div>
+                </div>
+                <div class="col-auto">
+                    <button class="btn btn-primary" id="searchBtn">
+                        <i class="fas fa-search"></i> 搜索
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2. 商品信息区 (默认隐藏，选中商品后显示) -->
+    <div id="productInfo" class="alert alert-info d-none mb-4" role="alert">
+        <h4 class="alert-heading" id="infoProductName">--</h4>
+        <p class="mb-0">统计时间: <span id="infoDate">--</span></p>
+        <hr>
+        <p class="mb-0">
+            商品链接: 
+            <a href="#" id="infoProductUrl" target="_blank" class="fw-bold">点击跳转</a>
+        </p>
+    </div>
+
+    <!-- 3. 图表区 -->
+    <div id="chartsArea" class="row g-4 d-none">
+        <!-- 评论情绪分布 -->
+        <div class="col-md-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-body">
+                    <h5 class="card-title text-center">评论情绪分布</h5>
+                    <div id="sentimentChart" style="height: 350px;"></div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 评论质量分布 -->
+        <div class="col-md-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-body text-center">
+                    <h5 class="card-title">评论质量分布</h5>
+                    <div id="qualityChart" style="height: 300px;"></div>
+                    <div class="mt-2">
+                        <span class="badge bg-primary fs-6">模型可信度: <span id="trustScore">--</span></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 平均情感分数 -->
+        <div class="col-md-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-body">
+                    <h5 class="card-title text-center">平均情感分数</h5>
+                    <div id="scoreChart" style="height: 350px;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 无数据提示 -->
+    <div id="noDataAlert" class="alert alert-warning d-none text-center" role="alert">
+        未找到相关商品的分析记录，请先在首页进行分析。
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/js/dashboard.js"></script>
+{% endblock %}

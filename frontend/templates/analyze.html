@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card shadow-sm">
+                <div class="card-header py-3">
+                    <h4 class="mb-0"><i class="fas fa-microscope me-2 text-primary"></i>单条评论检测</h4>
+                </div>
+                <div class="card-body p-4">
+                    <div class="mb-3">
+                        <label for="reviewContent" class="form-label text-muted">请输入待检测的评论内容：</label>
+                        <textarea class="form-control form-control-lg" id="reviewContent" rows="6" placeholder="例如：这件衣服质量太差了，穿了一次就起球..."></textarea>
+                    </div>
+                    <div class="d-grid">
+                        <button id="analyzeBtn" class="btn btn-primary btn-lg">
+                            <i class="fas fa-play me-2"></i>开始检测
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 结果展示区域 -->
+            <div id="resultCard" class="card mt-4 shadow-sm d-none">
+                <div class="card-body p-4">
+                    <h5 class="card-title mb-4">检测结果</h5>
+                    
+                    <div class="row align-items-center">
+                        <div class="col-md-4 text-center mb-3 mb-md-0">
+                            <div id="resultIcon" class="display-1 text-success">
+                                <i class="fas fa-check-circle"></i>
+                            </div>
+                            <h3 id="resultLabel" class="mt-2">真实评论</h3>
+                        </div>
+                        <div class="col-md-8">
+                            <div class="mb-3">
+                                <label class="small text-muted mb-1">置信度</label>
+                                <div class="progress" style="height: 25px;">
+                                    <div id="confidenceBar" class="progress-bar bg-success" role="progressbar" style="width: 0%">0%</div>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <div class="d-flex justify-content-between align-items-end mb-1">
+                                    <label class="small text-muted mb-0">情感倾向</label>
+                                    <span id="sentimentLabel" class="fw-bold small">0.00</span>
+                                </div>
+                                <div class="progress position-relative" style="height: 20px; background-color: var(--border-color);">
+                                    <!-- 中轴线 -->
+                                    <div style="position: absolute; left: 50%; top: 0; bottom: 0; border-left: 2px dashed #8b949e; z-index: 1;"></div>
+                                    <!-- 情感条 -->
+                                    <div id="sentimentBar" class="progress-bar" role="progressbar" style="position: absolute; left: 50%; width: 0%; height: 100%; transition: all 0.6s ease;"></div>
+                                </div>
+                                <div class="d-flex justify-content-between small text-muted mt-1" style="font-size: 0.75rem;">
+                                    <span>-1.0 (负)</span>
+                                    <span>0</span>
+                                    <span>+1.0 (正)</span>
+                                </div>
+                            </div>
+
+                            <div class="alert alert-light border" role="alert">
+                                <strong>分析详情：</strong>
+                                <span id="analysisText">--</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/js/analyze.js"></script>
+{% endblock %}
