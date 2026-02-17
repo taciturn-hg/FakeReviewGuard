@@ -176,7 +176,8 @@ def train_fake_review_detector():
     try:
         model_files = []
         for f in os.listdir(models_dir):
-            if f.startswith('fake_review_model_') and f.endswith('.pkl') and 'latest' not in f:
+            # 精确排除真正的最新模型文件，避免对子串 "latest" 的模糊匹配导致误排除备份文件
+            if f.startswith('fake_review_model_') and f.endswith('.pkl') and f != 'fake_review_model_latest.pkl':
                 model_files.append(os.path.join(models_dir, f))
         
         # Sort by modification time (oldest first)
