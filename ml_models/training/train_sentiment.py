@@ -180,8 +180,15 @@ def train_fake_review_detector():
             if f.startswith('fake_review_model_') and f.endswith('.pkl') and f != 'fake_review_model_latest.pkl':
                 model_files.append(os.path.join(models_dir, f))
         
-        # Sort by modification time (oldest first)
-        model_files.sort(key=os.path.getmtime)
+        # 按文件名中的时间戳排序（最早的在前），而不是按文件修改时间
+        # 这样可以严格按照模型训练时刻来判断新旧，避免由于文件被“触碰”导致修改时间变化而误删最新模型
+        def _extract_model_timestamp(path: str) -> str:
+            base_name = os.path.basename(path)
+            # 依赖命名规范：fake_review_model_YYYYMMDD_HHMMSS.pkl
+            # 去掉统一前缀和后缀，得到时间戳，例如 "20240101_120000"
+            return base_name.replace('fake_review_model_', '').replace('.pkl', '')
+        
+        model_files.sort(key=_extract_model_timestamp)
         
         # If more than 3, delete the oldest ones
         max_models = 3
