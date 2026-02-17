@@ -213,10 +213,10 @@ def main():
         logger.info(f"需要新标注 {len(new_indices)} 条评论，复用 {len(df) - len(new_indices)} 条。")
 
         if new_indices:
-            request_delay = getattr(settings, "deepseek_request_delay_seconds", 0.1)
-            # With threads, we might hit rate limits faster.
-            # Let's use a reasonable max_workers.
-            max_workers = 10 
+            # 默认请求延迟设置为 0.3 秒，以在无额外限流的情况下降低触发 DeepSeek 速率限制风险
+            request_delay = getattr(settings, "deepseek_request_delay_seconds", 0.3)
+            # 使用较小的并发线程数，进一步控制整体 QPS，避免触发 DeepSeek API 速率限制
+            max_workers = 4
             
             with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
                 future_to_index = {
