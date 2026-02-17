@@ -170,8 +170,24 @@ def main():
             existing_df = pd.read_csv(output_file)
             # Create a lookup key based on extract and product (or just extract if unique enough)
             # Using tuple of (extract, product) as key
-            for _, row in existing_df.iterrows():
-                key = (str(row.get('extract', '')).strip(), str(row.get('product', '')).strip())
+            # 注意：这里需要与下方新样本构建 key 的 NaN 归一化规则保持一致，
+            # 避免将 NaN 直接转换为字符串 "nan" 导致多条缺失值记录 key 冲突。
+            for idx, row in existing_df.iterrows():
+                raw_extract = row.get('extract')
+                raw_product = row.get('product')
+
+                # 统一对 NaN / 空字符串做归一化处理，防止 key 碰撞
+                if pd.isna(raw_extract) or str(raw_extract).strip() == '':
+                    extract_key = f"__NA_extract_{idx}__"
+                else:
+                    extract_key = str(raw_extract).strip()
+
+                if pd.isna(raw_product) or str(raw_product).strip() == '':
+                    product_key = f"__NA_product_{idx}__"
+                else:
+                    product_key = str(raw_product).strip()
+
+                key = (extract_key, product_key)
                 existing_labels_map[key] = {
                     'label': row.get('label'),
                     'reasoning': row.get('reasoning')
