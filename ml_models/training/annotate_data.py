@@ -249,8 +249,8 @@ def main():
         if new_indices:
             # 默认请求延迟设置为 0.3 秒，以在无额外限流的情况下降低触发 DeepSeek 速率限制风险
             request_delay = getattr(settings, "deepseek_request_delay_seconds", 0.3)
-            # 使用较小的并发线程数，进一步控制整体 QPS，避免触发 DeepSeek API 速率限制
-            max_workers = 4
+            # 使用可配置的并发线程数，默认值为 4，以控制整体 QPS，避免触发 DeepSeek API 速率限制
+            max_workers = getattr(settings, "max_annotation_workers", 4)
             
             with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
                 future_to_index = {
