@@ -219,21 +219,22 @@ def main():
         
         # Identify which rows need annotation
         for index, row in df.iterrows():
-            # 使用 pandas.isna 判断缺失值，避免 NaN 被统一转换为字符串 "nan" 导致缓存键冲突
+            # 使用 pandas.isna 判断缺失值，显式区分 NaN 与真实字符串内容
             raw_extract = row['extract']
             raw_product = row['product']
 
+            # 对缺失值使用稳定的显式占位符，而不是依赖行索引，避免跨运行键不一致和字符串撞名
             if pd.isna(raw_extract):
-                # 为缺失 extract 生成包含行索引的唯一占位符，确保不同 NaN 记录不会共享同一键
-                extract_val = f"__NA_EXTRACT_{index}__"
+                extract_val = "<NULL>"
             else:
                 extract_val = str(raw_extract).strip()
 
             if pd.isna(raw_product):
-                # 为缺失 product 生成包含行索引的唯一占位符，确保不同 NaN 记录不会共享同一键
-                product_val = f"__NA_PRODUCT_{index}__"
+                product_val = "<NULL>"
             else:
                 product_val = str(raw_product).strip()
+
+            # 组合后的键在同一内容下多次运行保持稳定，且不会与 "__NA_EXTRACT_0__" 等保留字符串发生碰撞
             key = (extract_val, product_val)
             
             if key in existing_labels_map:
