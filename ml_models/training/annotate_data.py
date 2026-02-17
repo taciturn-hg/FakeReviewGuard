@@ -3,6 +3,7 @@ import json
 import os
 import time
 import sys
+import concurrent.futures
 from openai import OpenAI
 from dotenv import load_dotenv
 
@@ -129,6 +130,23 @@ def annotate_review(client, text, score, product):
         logger.error(f"标注错误: {e}")
         return {"label": "Error", "reasoning": str(e)}
 
+def process_single_review(client, row, index, total, request_delay):
+    # This helper function handles single review annotation logic
+    try:
+        result = annotate_review(client, row['extract'], row['score'], row['product'])
+        return {
+            'index': index,
+            'label': result.get('label', 'Unknown'),
+            'reasoning': result.get('reasoning', 'No reasoning')
+        }
+    except Exception as e:
+        logger.error(f"Error processing review {index}: {e}")
+        return {
+            'index': index,
+            'label': 'Error',
+            'reasoning': str(e)
+        }
+
 def main():
     # 使用绝对路径以确保在任何目录运行都能找到文件
     base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -140,6 +158,23 @@ def main():
     if not os.path.exists(input_file):
         logger.error(f"未找到文件 {input_file}。请先运行 shared/utils/data_cleaner.py 生成 'sample_reviews_for_annotation.csv'。")
         return
+
+    # Load existing labels if available to avoid re-annotating
+    existing_labels_map = {}
+    if os.path.exists(output_file):
+        try:
+            existing_df = pd.read_csv(output_file)
+            # Create a lookup key based on extract and product (or just extract if unique enough)
+            # Using tuple of (extract, product) as key
+            for _, row in existing_df.iterrows():
+                key = (str(row.get('extract', '')).strip(), str(row.get('product', '')).strip())
+                existing_labels_map[key] = {
+                    'label': row.get('label'),
+                    'reasoning': row.get('reasoning')
+                }
+            logger.info(f"已加载 {len(existing_labels_map)} 条现有标注数据，将跳过重复项。")
+        except Exception as e:
+            logger.warning(f"读取现有标注文件失败，将重新标注所有数据: {e}")
 
     df = pd.read_csv(input_file)
     client = get_deepseek_client()
@@ -153,26 +188,60 @@ def main():
         df['label'] = df['extract'].apply(lambda x: 'Fake' if len(str(x)) < 30 or 'great' in str(x).lower() else 'Real')
         df['reasoning'] = "Mock reasoning based on length/keywords."
     else:
-        logger.info("开始使用 DeepSeek 进行标注...")
-        labels = []
-        reasonings = []
+        logger.info("开始使用 DeepSeek 进行标注 (并发模式)...")
         
-        # Optional override from settings:
-        # - Name: deepseek_request_delay_seconds
-        # - Purpose: control delay between DeepSeek API calls for rate limiting
-        # - Unit: seconds
-        # - Default: 0.5 (preserves current behavior if not explicitly configured)
-        request_delay = getattr(settings, "deepseek_request_delay_seconds", 0.5)
+        # Initialize lists with placeholders to maintain order or use index mapping
+        labels = [''] * len(df)
+        reasonings = [''] * len(df)
         
+        # Prepare tasks
+        new_indices = []
+        
+        # Identify which rows need annotation
         for index, row in df.iterrows():
-            logger.info(f"正在标注评论 {index + 1}/{len(df)}...")
-            result = annotate_review(client, row['extract'], row['score'], row['product'])
-            labels.append(result.get('label', 'Unknown'))
-            reasonings.append(result.get('reasoning', 'No reasoning'))
-            time.sleep(request_delay)  # Rate limiting
+            extract_val = str(row['extract']).strip()
+            product_val = str(row['product']).strip()
+            key = (extract_val, product_val)
             
+            if key in existing_labels_map:
+                cached = existing_labels_map[key]
+                labels[index] = cached['label']
+                reasonings[index] = cached['reasoning']
+            else:
+                new_indices.append(index)
+
+        logger.info(f"需要新标注 {len(new_indices)} 条评论，复用 {len(df) - len(new_indices)} 条。")
+
+        if new_indices:
+            request_delay = getattr(settings, "deepseek_request_delay_seconds", 0.1)
+            # With threads, we might hit rate limits faster.
+            # Let's use a reasonable max_workers.
+            max_workers = 10 
+            
+            with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+                future_to_index = {
+                    executor.submit(process_single_review, client, df.iloc[idx], idx, len(df), request_delay): idx 
+                    for idx in new_indices
+                }
+                
+                completed_count = 0
+                for future in concurrent.futures.as_completed(future_to_index):
+                    idx = future_to_index[future]
+                    try:
+                        res = future.result()
+                        labels[idx] = res['label']
+                        reasonings[idx] = res['reasoning']
+                        completed_count += 1
+                        if completed_count % 10 == 0:
+                            logger.info(f"进度: {completed_count}/{len(new_indices)} 新评论已标注")
+                    except Exception as exc:
+                        logger.error(f"Review {idx} generated an exception: {exc}")
+                        labels[idx] = 'Error'
+                        reasonings[idx] = str(exc)
+
         df['label'] = labels
         df['reasoning'] = reasonings
+        logger.info(f"标注过程结束。")
 
     # 过滤掉标注失败的数据
     valid_df = df[df['label'] != 'Error']

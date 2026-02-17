@@ -170,6 +170,46 @@ def train_fake_review_detector():
     logger.info(f"向量化器已保存至 {vectorizer_path}")
     logger.info(f"最新模型也已保存至 {latest_model_path}")
 
+    # Clean up old models (keep only last 3 timestamped versions)
+    # Filter for timestamped model files (e.g., fake_review_model_20240101_120000.pkl)
+    # Excluding 'latest' and potentially other files
+    try:
+        model_files = []
+        for f in os.listdir(models_dir):
+            if f.startswith('fake_review_model_') and f.endswith('.pkl') and 'latest' not in f:
+                model_files.append(os.path.join(models_dir, f))
+        
+        # Sort by modification time (oldest first)
+        model_files.sort(key=os.path.getmtime)
+        
+        # If more than 3, delete the oldest ones
+        max_models = 3
+        if len(model_files) > max_models:
+            files_to_delete = model_files[:-max_models]
+            logger.info(f"发现超过 {max_models} 个历史模型，正在清理旧模型...")
+            for f_path in files_to_delete:
+                try:
+                    os.remove(f_path)
+                    logger.info(f"已删除旧模型文件: {f_path}")
+                    
+                    # Also try to delete corresponding vectorizer
+                    # Assuming naming convention: fake_review_model_TIMESTAMP.pkl -> tfidf_vectorizer_TIMESTAMP.pkl
+                    base_name = os.path.basename(f_path)
+                    timestamp_part = base_name.replace('fake_review_model_', '').replace('.pkl', '')
+                    vec_name = f'tfidf_vectorizer_{timestamp_part}.pkl'
+                    vec_path = os.path.join(models_dir, vec_name)
+                    
+                    if os.path.exists(vec_path):
+                        os.remove(vec_path)
+                        logger.info(f"已删除旧向量化器文件: {vec_path}")
+                        
+                except Exception as e:
+                    logger.warning(f"删除文件 {f_path} 失败: {e}")
+            logger.info("旧模型清理完成。")
+            
+    except Exception as e:
+        logger.warning(f"清理旧模型时发生错误: {e}")
+
     # Inference Example
     logger.info("--- 推理测试 (中文) ---")
     test_review = "这个手机真是太好用了！我买了10个。强烈推荐！"
