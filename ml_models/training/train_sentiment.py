@@ -188,21 +188,35 @@ def train_fake_review_detector():
         if len(model_files) > max_models:
             files_to_delete = model_files[:-max_models]
             logger.info(f"发现超过 {max_models} 个历史模型，正在清理旧模型...")
+            # 使用绝对路径确保后续目录校验可靠
+            models_dir_abs = os.path.abspath(models_dir)
             for f_path in files_to_delete:
                 try:
-                    os.remove(f_path)
-                    logger.info(f"已删除旧模型文件: {f_path}")
+                    # 安全校验：仅允许删除位于 models_dir 下的文件
+                    f_abs_path = os.path.abspath(f_path)
+                    f_dir = os.path.dirname(f_abs_path)
+                    if f_dir != models_dir_abs:
+                        logger.warning(f"跳过删除非模型目录文件: {f_abs_path}")
+                        continue
+
+                    os.remove(f_abs_path)
+                    logger.info(f"已删除旧模型文件: {f_abs_path}")
                     
                     # Also try to delete corresponding vectorizer
                     # Assuming naming convention: fake_review_model_TIMESTAMP.pkl -> tfidf_vectorizer_TIMESTAMP.pkl
-                    base_name = os.path.basename(f_path)
+                    base_name = os.path.basename(f_abs_path)
                     timestamp_part = base_name.replace('fake_review_model_', '').replace('.pkl', '')
                     vec_name = f'tfidf_vectorizer_{timestamp_part}.pkl'
                     vec_path = os.path.join(models_dir, vec_name)
+                    vec_abs_path = os.path.abspath(vec_path)
+                    vec_dir = os.path.dirname(vec_abs_path)
                     
-                    if os.path.exists(vec_path):
-                        os.remove(vec_path)
-                        logger.info(f"已删除旧向量化器文件: {vec_path}")
+                    if os.path.exists(vec_abs_path):
+                        if vec_dir == models_dir_abs:
+                            os.remove(vec_abs_path)
+                            logger.info(f"已删除旧向量化器文件: {vec_abs_path}")
+                        else:
+                            logger.warning(f"检测到非模型目录中的向量化器文件，已跳过删除: {vec_abs_path}")
                         
                 except Exception as e:
                     logger.warning(f"删除文件 {f_path} 失败: {e}")
