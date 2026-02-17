@@ -199,8 +199,21 @@ def main():
         
         # Identify which rows need annotation
         for index, row in df.iterrows():
-            extract_val = str(row['extract']).strip()
-            product_val = str(row['product']).strip()
+            # 使用 pandas.isna 判断缺失值，避免 NaN 被统一转换为字符串 "nan" 导致缓存键冲突
+            raw_extract = row['extract']
+            raw_product = row['product']
+
+            if pd.isna(raw_extract):
+                # 为缺失 extract 生成包含行索引的唯一占位符，确保不同 NaN 记录不会共享同一键
+                extract_val = f"__NA_EXTRACT_{index}__"
+            else:
+                extract_val = str(raw_extract).strip()
+
+            if pd.isna(raw_product):
+                # 为缺失 product 生成包含行索引的唯一占位符，确保不同 NaN 记录不会共享同一键
+                product_val = f"__NA_PRODUCT_{index}__"
+            else:
+                product_val = str(raw_product).strip()
             key = (extract_val, product_val)
             
             if key in existing_labels_map:
