@@ -131,8 +131,12 @@ def annotate_review(client, text, score, product):
         return {"label": "Error", "reasoning": str(e)}
 
 def process_single_review(client, row, index, total, request_delay):
-    # This helper function handles single review annotation logic
+    # 处理单条评论标注逻辑的辅助函数
     try:
+        # 基于 request_delay 做简单的节流控制，避免并发下瞬时 QPS 过高
+        # 仅当 request_delay 为正数时才进行休眠，不影响默认性能
+        if isinstance(request_delay, (int, float)) and request_delay > 0:
+            time.sleep(request_delay)
         result = annotate_review(client, row['extract'], row['score'], row['product'])
         return {
             'index': index,
