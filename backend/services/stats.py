@@ -37,9 +37,8 @@ class StatsService:
             )
             
             # 清理旧数据：删除该任务ID下的所有统计数据，重新计算
-            # 这样做比较简单，防止多次计算产生脏数据
+            # 注意：删除操作与后续插入必须在同一事务中，避免中途失败导致数据被清空却未写入新统计
             db.query(ProductStats).filter(ProductStats.task_id == task_id).delete()
-            db.commit()
 
             created_stats = []
 
