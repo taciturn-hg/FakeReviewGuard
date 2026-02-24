@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, distinct
 from backend.models.sql_models import CommentAnalysis, ProductStats, CrawlerTask
 from shared.utils.logger import logger
 
@@ -8,6 +8,9 @@ class StatsService:
     def calculate_stats(task_id: int, db: Session):
         """
         根据 CommentAnalysis 表的结果，计算统计数据并存入 ProductStats
+        分别计算：
+        1. 总体统计 (product_spec = None)
+        2. 各个规格的统计 (product_spec = '具体的规格')
         """
         try:
             # 获取 URL
@@ -16,115 +19,132 @@ class StatsService:
             if task_info:
                 product_url = task_info.product_url
 
-            # 1. 查询基础数据
-            stats = db.query(
-                func.count(CommentAnalysis.id).label("total"),
-                func.sum(CommentAnalysis.is_fake).label("fake_sum"), 
-                func.avg(CommentAnalysis.sentiment_score).label("sentiment_avg"),
-                func.avg(CommentAnalysis.confidence).label("confidence_avg")
-            ).filter(CommentAnalysis.task_id == task_id).first()
-            
-            if not stats:
-                logger.warning(f"任务 {task_id} 没有分析结果，无法统计")
-                return None
-
-            # 2. 计算正面/负面/中性评论数
-            # 统一逻辑：> 0.2 正面, < -0.2 负面, 否则中性
-            positive_count = db.query(CommentAnalysis).filter(
-                CommentAnalysis.task_id == task_id, 
-                CommentAnalysis.sentiment_score > 0.2
-            ).count()
-            
-            negative_count = db.query(CommentAnalysis).filter(
-                CommentAnalysis.task_id == task_id, 
-                CommentAnalysis.sentiment_score < -0.2
-            ).count()
-            
-            neutral_count = db.query(CommentAnalysis).filter(
-                CommentAnalysis.task_id == task_id, 
-                CommentAnalysis.sentiment_score >= -0.2,
-                CommentAnalysis.sentiment_score <= 0.2
-            ).count()
-
-            # 3. 计算比率
-            total = stats.total or 0
-            fake_count = int(stats.fake_sum or 0)
-            
-            # 从聚合结果获取平均置信度 (0-1)
-            confidence_val = float(stats.confidence_avg or 0)
-            
-            # 初始化所有变量，防止 UnboundLocalError
-            fake_ratio = 0.0
-            confidence = 0.0
-            positive_ratio = 0.0
-            negative_ratio = 0.0
-            neutral_ratio = 0.0
-            
-            if total > 0:
-                fake_ratio = round((fake_count / total) * 100, 2)
-                # confidence 字段存储 0-1 的小数
-                confidence = round(confidence_val, 2)
-                
-                positive_ratio = round((positive_count / total) * 100, 2)
-                negative_ratio = round((negative_count / total) * 100, 2)
-                neutral_ratio = round((neutral_count / total) * 100, 2)
-                
-            sentiment_score = round(float(stats.sentiment_avg or 0), 2)
-            
-            # 获取商品名称
+            # 获取商品名称 (取第一条有值的)
             first_record = db.query(CommentAnalysis).filter(CommentAnalysis.task_id == task_id).first()
             product_name = first_record.product if first_record else "未知商品"
 
-            # 4. 创建或更新 ProductStats
-            existing_stats = db.query(ProductStats).filter(ProductStats.task_id == task_id).first()
+            # 1. 获取所有不重复的规格 (包括 NULL)
+            # 注意：func.distinct(CommentAnalysis.product_spec) 可能返回 ('规格A',), (None,) 等元组
+            specs_query = db.query(distinct(CommentAnalysis.product_spec)).filter(
+                CommentAnalysis.task_id == task_id
+            ).all()
             
-            if existing_stats:
-                # 更新
-                existing_stats.total_reviews = total
-                existing_stats.fake_count = fake_count
-                existing_stats.fake_ratio = fake_ratio
-                existing_stats.confidence = confidence
-                existing_stats.sentiment_score = sentiment_score
-                existing_stats.positive_reviews_count = positive_count
-                existing_stats.negative_reviews_count = negative_count
-                existing_stats.neutral_reviews_count = neutral_count
-                
-                existing_stats.positive_ratio = positive_ratio
-                existing_stats.negative_ratio = negative_ratio
-                existing_stats.neutral_ratio = neutral_ratio
-                
-                if product_url:
-                    existing_stats.product_url = product_url
-                
-                logger.info(f"更新任务 {task_id} 的统计结果")
-                db_stats = existing_stats
-            else:
-                # 新增
-                db_stats = ProductStats(
-                    task_id=task_id,
-                    product=product_name,
-                    product_url=product_url,
-                    total_reviews=total,
-                    fake_count=fake_count,
-                    fake_ratio=fake_ratio,
-                    confidence=confidence,
-                    sentiment_score=sentiment_score,
-                    positive_reviews_count=positive_count,
-                    negative_reviews_count=negative_count,
-                    neutral_reviews_count=neutral_count,
-                    
-                    positive_ratio=positive_ratio,
-                    negative_ratio=negative_ratio,
-                    neutral_ratio=neutral_ratio
-                )
-                db.add(db_stats)
-                logger.info(f"创建任务 {task_id} 的统计结果")
+            # 提取规格列表，过滤掉 None，稍后单独处理总体和 None
+            # 这里我们定义：
+            # - 总体统计：不加规格过滤条件
+            # - 规格统计：针对每个非空规格
             
+            # 清理旧数据：删除该任务ID下的所有统计数据，重新计算
+            # 这样做比较简单，防止多次计算产生脏数据
+            db.query(ProductStats).filter(ProductStats.task_id == task_id).delete()
             db.commit()
-            db.refresh(db_stats)
-            return db_stats
+
+            created_stats = []
+
+            # --- 1. 计算总体统计 (Overall) ---
+            overall_stat = StatsService._calculate_single_group(db, task_id, None, is_overall=True)
+            if overall_stat:
+                overall_stat.product = product_name
+                overall_stat.product_url = product_url
+                db.add(overall_stat)
+                created_stats.append(overall_stat)
+
+            # --- 2. 计算各规格统计 ---
+            # 提取具体的规格字符串列表
+            spec_list = [s[0] for s in specs_query if s[0] is not None and s[0] != ""]
+            
+            for spec in spec_list:
+                spec_stat = StatsService._calculate_single_group(db, task_id, spec, is_overall=False)
+                if spec_stat:
+                    spec_stat.product = product_name
+                    spec_stat.product_url = product_url
+                    db.add(spec_stat)
+                    created_stats.append(spec_stat)
+
+            db.commit()
+            
+            # 返回总体统计数据用于 API 响应 (如果有的话)
+            # 如果没有总体数据，返回列表中的第一个
+            for stat in created_stats:
+                db.refresh(stat)
+                
+            return created_stats[0] if created_stats else None
             
         except Exception as e:
             logger.error(f"计算统计结果失败: {e}")
             db.rollback()
             return None
+
+    @staticmethod
+    def _calculate_single_group(db: Session, task_id: int, spec: str, is_overall: bool):
+        """
+        内部辅助方法：计算单个分组的统计数据
+        :param spec: 规格名称。如果 is_overall 为 True，则忽略此参数计算全部。
+        """
+        # 构建基础查询
+        base_query = db.query(CommentAnalysis).filter(CommentAnalysis.task_id == task_id)
+        
+        # 如果不是总体统计，则增加规格过滤
+        if not is_overall:
+            base_query = base_query.filter(CommentAnalysis.product_spec == spec)
+
+        # 1. 查询基础聚合数据
+        stats = base_query.with_entities(
+            func.count(CommentAnalysis.id).label("total"),
+            func.sum(CommentAnalysis.is_fake).label("fake_sum"), 
+            func.avg(CommentAnalysis.sentiment_score).label("sentiment_avg"),
+            func.avg(CommentAnalysis.confidence).label("confidence_avg")
+        ).first()
+        
+        if not stats or stats.total == 0:
+            return None
+
+        # 2. 计算正面/负面/中性评论数
+        # 复用 base_query 的过滤条件
+        positive_count = base_query.filter(CommentAnalysis.sentiment_score > 0.2).count()
+        negative_count = base_query.filter(CommentAnalysis.sentiment_score < -0.2).count()
+        neutral_count = base_query.filter(
+            CommentAnalysis.sentiment_score >= -0.2,
+            CommentAnalysis.sentiment_score <= 0.2
+        ).count()
+
+        # 3. 计算比率
+        total = stats.total or 0
+        fake_count = int(stats.fake_sum or 0)
+        confidence_val = float(stats.confidence_avg or 0)
+        
+        fake_ratio = 0.0
+        confidence = 0.0
+        positive_ratio = 0.0
+        negative_ratio = 0.0
+        neutral_ratio = 0.0
+        
+        if total > 0:
+            fake_ratio = round((fake_count / total) * 100, 2)
+            confidence = round(confidence_val, 2)
+            positive_ratio = round((positive_count / total) * 100, 2)
+            negative_ratio = round((negative_count / total) * 100, 2)
+            neutral_ratio = round((neutral_count / total) * 100, 2)
+            
+        sentiment_score = round(float(stats.sentiment_avg or 0), 2)
+
+        # 4. 创建 ProductStats 对象
+        # 如果是总体统计，product_spec 存为 None (或者 'ALL'，这里用 None 保持数据库语义)
+        # 如果是规格统计，product_spec 存为具体的 spec
+        db_spec_value = None if is_overall else spec
+
+        return ProductStats(
+            task_id=task_id,
+            product_spec=db_spec_value,
+            total_reviews=total,
+            fake_count=fake_count,
+            fake_ratio=fake_ratio,
+            confidence=confidence,
+            sentiment_score=sentiment_score,
+            positive_reviews_count=positive_count,
+            negative_reviews_count=negative_count,
+            neutral_reviews_count=neutral_count,
+            positive_ratio=positive_ratio,
+            negative_ratio=negative_ratio,
+            neutral_ratio=neutral_ratio
+        )

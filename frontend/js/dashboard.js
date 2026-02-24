@@ -11,12 +11,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const infoDate = document.getElementById('infoDate');
     const infoProductUrl = document.getElementById('infoProductUrl');
     const trustScoreEl = document.getElementById('trustScore');
+    const specSelect = document.getElementById('dashboardSpecSelect'); // 新增规格选择器
 
     // Chart Instances
     let sentimentChart = null;
     let qualityChart = null;
     let scoreChart = null;
     let lastData = null;
+    let currentSpecsData = []; // 存储当前的规格数据列表
 
     // 获取当前主题配置
     const getThemeConfig = () => {
@@ -92,11 +94,13 @@ document.addEventListener('DOMContentLoaded', () => {
             
             const data = await response.json();
             lastData = data;
-            renderDashboard(data);
             
+            // 关键：先显示区域，确保 ECharts 初始化时能获取容器尺寸
             productInfo.classList.remove('d-none');
             chartsArea.classList.remove('d-none');
             noDataAlert.classList.add('d-none');
+            
+            renderDashboard(data);
         } catch (err) {
             console.error(err);
             productInfo.classList.add('d-none');
@@ -119,8 +123,53 @@ document.addEventListener('DOMContentLoaded', () => {
     // 3. 渲染大屏 (入口)
     function renderDashboard(data) {
         if (!data) return;
+        lastData = data; // 保存原始数据
+        currentSpecsData = data.specs || []; // 保存规格数据
+
+        // 初始化规格下拉框
+        if (specSelect) {
+            specSelect.innerHTML = '<option value="all" selected>全部规格</option>';
+            if (currentSpecsData.length > 0) {
+                currentSpecsData.forEach(spec => {
+                    const option = document.createElement('option');
+                    option.value = spec.product_spec;
+                    // 截断过长的规格名称
+                    const displayName = spec.product_spec.length > 25 ? spec.product_spec.substring(0, 25) + '...' : spec.product_spec;
+                    option.textContent = displayName;
+                    specSelect.appendChild(option);
+                });
+                specSelect.disabled = false;
+                specSelect.value = 'all'; // 重置为全部
+            } else {
+                specSelect.disabled = true;
+            }
+        }
+
         const theme = getThemeConfig();
         renderDashboardWithConfig(data, theme);
+    }
+
+    // 监听规格选择变化
+    if (specSelect) {
+        specSelect.addEventListener('change', (e) => {
+            const selectedSpec = e.target.value;
+            const theme = getThemeConfig();
+            
+            if (selectedSpec === 'all') {
+                // 恢复总体数据
+                if (lastData) {
+                    renderDashboardWithConfig(lastData, theme);
+                }
+            } else {
+                // 查找对应规格的数据
+                const specData = currentSpecsData.find(s => s.product_spec === selectedSpec);
+                if (specData) {
+                    // 合并基本信息，因为 specData 可能缺少部分总体信息（如 product_name）
+                    // 但根据后端逻辑，specData 应该包含所有必要字段
+                    renderDashboardWithConfig(specData, theme);
+                }
+            }
+        });
     }
 
     // 内部渲染函数，接受特定的主题配置
@@ -137,18 +186,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         trustScoreEl.textContent = data.trust_score;
 
-        // 初始化图表
-        if (!sentimentChart) sentimentChart = echarts.init(document.getElementById('sentimentChart'));
-        if (!qualityChart) qualityChart = echarts.init(document.getElementById('qualityChart'));
-        if (!scoreChart) scoreChart = echarts.init(document.getElementById('scoreChart'));
-
-        // 关键修复：确保图表容器有正确的大小后再 resize
-        setTimeout(() => {
-            sentimentChart.resize();
-            qualityChart.resize();
-            scoreChart.resize();
-        }, 0);
-
         // 准备数据
         const totalSentiment = (data.positive_count || 0) + (data.neutral_count || 0) + (data.negative_count || 0);
         const sentimentData = totalSentiment > 0 
@@ -159,9 +196,11 @@ document.addEventListener('DOMContentLoaded', () => {
             ]
             : [{ value: 0, name: '无数据', itemStyle: { color: '#eee' }, label: { show: true, position: 'center', formatter: '无数据', fontSize: 20, color: '#999' } }];
 
-        // 图表 1: 评论情绪分布 (Pie)
-        sentimentChart.setOption({
+        const sentimentOption = {
             backgroundColor: 'transparent',
+            animation: true,
+            animationDuration: 1000,
+            animationEasing: 'cubicOut',
             tooltip: { 
                 trigger: 'item',
                 backgroundColor: theme.chartTooltipBg,
@@ -182,7 +221,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 label: { show: false },
                 data: sentimentData
             }]
-        });
+        };
 
         // 准备质量数据
         const totalQuality = data.real_count + data.fake_count;
@@ -193,9 +232,11 @@ document.addEventListener('DOMContentLoaded', () => {
             ]
             : [{ value: 0, name: '无数据', itemStyle: { color: theme.borderColor }, label: { show: true, position: 'center', formatter: '无数据', fontSize: 20, color: theme.textColor } }];
 
-        // 图表 2: 评论质量分布 (Pie)
-        qualityChart.setOption({
+        const qualityOption = {
             backgroundColor: 'transparent',
+            animation: true,
+            animationDuration: 1000,
+            animationEasing: 'cubicOut',
             tooltip: { 
                 trigger: 'item',
                 backgroundColor: theme.chartTooltipBg,
@@ -216,10 +257,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 label: { show: false },
                 data: qualityData
             }]
-        });
+        };
 
-        // 图表 3: 平均情感分数 (Gauge)
-        scoreChart.setOption({
+        const scoreOption = {
             backgroundColor: 'transparent',
             series: [{
                 type: 'gauge',
@@ -244,6 +284,34 @@ document.addEventListener('DOMContentLoaded', () => {
                 },
                 data: [{ value: data.sentiment_score, name: '情感得分', title: { color: theme.textColor } }]
             }]
+        };
+
+        const renderCharts = () => {
+            const sentimentEl = document.getElementById('sentimentChart');
+            const qualityEl = document.getElementById('qualityChart');
+            const scoreEl = document.getElementById('scoreChart');
+            if (!sentimentEl || !qualityEl || !scoreEl) return;
+
+            // 初始化图表 (仅在首次初始化)
+            if (!sentimentChart) sentimentChart = echarts.init(sentimentEl);
+            if (!qualityChart) qualityChart = echarts.init(qualityEl);
+            if (!scoreChart) scoreChart = echarts.init(scoreEl);
+
+            // 先 resize 再 setOption，避免首次布局未稳定导致动画跳过
+            sentimentChart.resize();
+            qualityChart.resize();
+            scoreChart.resize();
+
+            sentimentChart.setOption(sentimentOption, true);
+            qualityChart.setOption(qualityOption, true);
+            scoreChart.setOption(scoreOption, true);
+        };
+
+        // 等两帧，确保 remove('d-none') 后容器尺寸稳定再渲染
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                renderCharts();
+            });
         });
     }
 
