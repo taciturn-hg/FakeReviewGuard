@@ -120,30 +120,37 @@ document.addEventListener('DOMContentLoaded', () => {
         renderDashboardWithConfig(lastData, theme);
     });
 
+    // 初始化规格下拉框
+    function initSpecDropdown(specs) {
+        if (!specSelect) return;
+
+        specSelect.innerHTML = '<option value="all" selected>全部规格</option>';
+        if (specs && specs.length > 0) {
+            specs.forEach(spec => {
+                const option = document.createElement('option');
+                option.value = spec.product_spec;
+                // 截断过长的规格名称
+                const displayName = spec.product_spec.length > 25
+                    ? spec.product_spec.substring(0, 25) + '...'
+                    : spec.product_spec;
+                option.textContent = displayName;
+                specSelect.appendChild(option);
+            });
+            specSelect.disabled = false;
+            specSelect.value = 'all'; // 重置为全部
+        } else {
+            specSelect.disabled = true;
+        }
+    }
+
     // 3. 渲染大屏 (入口)
     function renderDashboard(data) {
         if (!data) return;
         lastData = data; // 保存原始数据
         currentSpecsData = data.specs || []; // 保存规格数据
 
-        // 初始化规格下拉框
-        if (specSelect) {
-            specSelect.innerHTML = '<option value="all" selected>全部规格</option>';
-            if (currentSpecsData.length > 0) {
-                currentSpecsData.forEach(spec => {
-                    const option = document.createElement('option');
-                    option.value = spec.product_spec;
-                    // 截断过长的规格名称
-                    const displayName = spec.product_spec.length > 25 ? spec.product_spec.substring(0, 25) + '...' : spec.product_spec;
-                    option.textContent = displayName;
-                    specSelect.appendChild(option);
-                });
-                specSelect.disabled = false;
-                specSelect.value = 'all'; // 重置为全部
-            } else {
-                specSelect.disabled = true;
-            }
-        }
+        // 使用统一的初始化函数填充规格下拉框
+        initSpecDropdown(currentSpecsData);
 
         const theme = getThemeConfig();
         renderDashboardWithConfig(data, theme);

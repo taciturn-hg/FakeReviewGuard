@@ -94,12 +94,12 @@ def get_stats_detail(task_id: int, db: Session = Depends(get_db)):
         else:
             specs_list.append(stat_dict)
             
-    # 如果没有找到 explicit 的总体数据 (兼容旧数据或逻辑异常)，尝试用第一个数据作为总体
-    if not overall_stats and all_stats:
-        overall_stats = specs_list[0] if specs_list else None
-        
-    if not overall_stats:
-         raise HTTPException(status_code=404, detail="统计数据异常")
+    # 如果没有找到 explicit 的总体数据 (兼容旧数据或逻辑异常)，尝试用第一个规格数据作为总体
+    if not overall_stats and specs_list:
+        overall_stats = specs_list[0]
+    elif not overall_stats:
+        # 此时既没有总体统计，也没有规格统计，认为数据异常
+        raise HTTPException(status_code=404, detail="统计数据异常")
 
     # 3. 构造返回结构
     # 将规格列表放入 specs 字段

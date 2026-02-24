@@ -60,6 +60,8 @@ class CommentAnalysis(Base):
         CheckConstraint('sentiment_score >= -1 AND sentiment_score <= 1', name='chk_sentiment'),
         Index('idx_raw_comment_id', 'raw_comment_id'),
         Index('idx_task_id', 'task_id'),
+        # MySQL 对 TEXT 建索引需要前缀长度；191 适配 utf8mb4 + 旧 InnoDB 限制
+        Index('idx_task_id_product_spec', 'task_id', 'product_spec', mysql_length={'product_spec': 191}),
         Index('idx_created_at', 'created_at'),
         Index('idx_is_fake', 'is_fake'),
     )

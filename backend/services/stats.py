@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from sqlalchemy import func, distinct
+from sqlalchemy import func
 from backend.models.sql_models import CommentAnalysis, ProductStats, CrawlerTask
 from shared.utils.logger import logger
 
@@ -23,16 +23,18 @@ class StatsService:
             first_record = db.query(CommentAnalysis).filter(CommentAnalysis.task_id == task_id).first()
             product_name = first_record.product if first_record else "未知商品"
 
-            # 1. 获取所有不重复的规格 (包括 NULL)
-            # 注意：func.distinct(CommentAnalysis.product_spec) 可能返回 ('规格A',), (None,) 等元组
-            specs_query = db.query(distinct(CommentAnalysis.product_spec)).filter(
-                CommentAnalysis.task_id == task_id
-            ).all()
-            
-            # 提取规格列表，过滤掉 None，稍后单独处理总体和 None
-            # 这里我们定义：
-            # - 总体统计：不加规格过滤条件
-            # - 规格统计：针对每个非空规格
+            # 1. 获取所有不重复的规格（不包含 NULL/空字符串）
+            # 使用 GROUP BY 更利于走 (task_id, product_spec) 联合索引，避免 DISTINCT 触发额外的 filesort
+            specs_query = (
+                db.query(CommentAnalysis.product_spec)
+                .filter(
+                    CommentAnalysis.task_id == task_id,
+                    CommentAnalysis.product_spec.isnot(None),
+                    CommentAnalysis.product_spec != "",
+                )
+                .group_by(CommentAnalysis.product_spec)
+                .all()
+            )
             
             # 清理旧数据：删除该任务ID下的所有统计数据，重新计算
             # 这样做比较简单，防止多次计算产生脏数据
@@ -51,7 +53,7 @@ class StatsService:
 
             # --- 2. 计算各规格统计 ---
             # 提取具体的规格字符串列表
-            spec_list = [s[0] for s in specs_query if s[0] is not None and s[0] != ""]
+            spec_list = [s[0] for s in specs_query if s[0]]
             
             for spec in spec_list:
                 spec_stat = StatsService._calculate_single_group(db, task_id, spec, is_overall=False)
