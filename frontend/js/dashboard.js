@@ -174,6 +174,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     // 合并基本信息，因为 specData 可能缺少部分总体信息（如 product_name）
                     // 但根据后端逻辑，specData 应该包含所有必要字段
                     renderDashboardWithConfig(specData, theme);
+                } else {
+                    console.warn('未找到对应规格的大屏统计数据:', selectedSpec, currentSpecsData);
+                    alert('未找到该规格的大屏统计数据，已恢复为总体数据。');
+                    if (lastData) {
+                        renderDashboardWithConfig(lastData, theme);
+                    }
+                    // 重置下拉框为全部规格
+                    specSelect.value = 'all';
                 }
             }
         });

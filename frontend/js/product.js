@@ -297,6 +297,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 const specData = currentSpecsData.find(s => s.product_spec === selectedSpec);
                 if (specData) {
                     updatePageData(specData);
+                } else {
+                    console.warn('未找到对应规格的数据:', selectedSpec, currentSpecsData);
+                    alert('未找到该规格的统计数据，已恢复为总体数据。');
+                    if (lastResult) {
+                        updatePageData(lastResult);
+                    }
+                    // 重置下拉框为全部规格
+                    specSelect.value = 'all';
                 }
             }
         });
