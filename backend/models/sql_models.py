@@ -17,7 +17,7 @@ class RawComment(Base):
     __tablename__ = "01_raw_comment"
 
     id = Column(Integer, primary_key=True, autoincrement=True, comment="原始评论ID")
-    task_id = Column(Integer, nullable=False, index=True, comment="关联的任务ID")
+    task_id = Column(Integer, ForeignKey("00_crawler_tasks.task_id"), nullable=False, index=True, comment="关联的任务ID")
     original_comment_id = Column(String(255), comment="平台原始评论ID")
     original_product_id = Column(String(255), comment="平台原始商品ID")
     product = Column(Text, nullable=False, comment="商品名称")
@@ -41,7 +41,7 @@ class CommentAnalysis(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True, comment="分析结果ID")
     raw_comment_id = Column(Integer, ForeignKey("01_raw_comment.id"), nullable=False, comment="关联的原始评论ID")
-    task_id = Column(Integer, nullable=False, comment="关联的任务ID")
+    task_id = Column(Integer, ForeignKey("00_crawler_tasks.task_id"), nullable=False, comment="关联的任务ID")
     extract = Column(String(500), comment="评论内容摘要")
     label = Column(String(50), comment="标签分类")
     is_fake = Column(Integer, default=0, comment="是否为虚假评论：0-真实，1-虚假，2-疑似")
@@ -71,7 +71,7 @@ class ProductStats(Base):
     __tablename__ = "03_product_stats"
 
     id = Column(Integer, primary_key=True, autoincrement=True, comment="统计结果ID")
-    task_id = Column(Integer, nullable=False, index=True, comment="关联的任务ID")
+    task_id = Column(Integer, ForeignKey("00_crawler_tasks.task_id"), nullable=False, index=True, comment="关联的任务ID")
     product = Column(String(200), index=True, comment="商品名称")
     product_spec = Column(Text, comment="商品规格")
     product_url = Column(String(500), comment="商品链接")

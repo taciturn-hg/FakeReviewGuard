@@ -12,15 +12,11 @@ CREATE TABLE `02_comment_analysis` (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '分析结果入库时间',
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
 
-    -- 索引定义：提升外键关联和常用查询性能
-    KEY idx_raw_comment_id (raw_comment_id),
-    KEY idx_task_id (task_id),
-    KEY idx_created_at (created_at),
-    KEY idx_is_fake (is_fake),
-    
     -- 外键约束
     CONSTRAINT fk_raw_comment FOREIGN KEY (raw_comment_id) 
         REFERENCES `01_raw_comment`(id) ON DELETE RESTRICT,
+    CONSTRAINT fk_comment_task FOREIGN KEY (task_id)
+        REFERENCES `00_crawler_tasks`(task_id) ON DELETE CASCADE,
         
     -- 数据约束
     CONSTRAINT chk_is_fake CHECK (is_fake IN (0, 1, 2)),
