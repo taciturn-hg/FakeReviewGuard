@@ -254,7 +254,8 @@ def main():
             
             with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
                 future_to_index = {
-                    executor.submit(process_single_review, client, df.iloc[idx], idx, len(df), request_delay): idx 
+                    # 为每个任务创建独立的 OpenAI 客户端实例，避免在多线程中共享同一个 client
+                    executor.submit(process_single_review, OpenAI(), df.iloc[idx], idx, len(df), request_delay): idx
                     for idx in new_indices
                 }
                 
