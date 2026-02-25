@@ -226,7 +226,11 @@ def train_fake_review_detector():
                             logger.warning(f"检测到非模型目录中的向量化器文件，已跳过删除: {vec_abs_path}")
                         
                 except Exception as e:
-                    logger.warning(f"删除文件 {f_path} 失败: {e}")
+                    # 增强日志：记录实际删除目标的绝对路径和异常类型，便于排查
+                    logger.warning(f"删除文件 {os.path.abspath(f_path)} 失败: {type(e).__name__}: {e}")
+                    # 如果对应时间戳的向量化器路径已解析且文件存在，也提示可能未被清理
+                    if 'vec_abs_path' in locals() and os.path.exists(vec_abs_path):
+                        logger.warning(f"对应的向量化器文件也可能未删除: {vec_abs_path}")
             logger.info("旧模型清理完成。")
             
     except Exception as e:
