@@ -30,11 +30,14 @@ class ReviewAPI {
     }
 
     // 1. 启动任务
-    static async startTask(productUrl) {
+    static async startTask(productUrl, forceRestart = false) {
         const response = await fetch('/api/v1/task/start', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ product_url: productUrl })
+            body: JSON.stringify({ 
+                product_url: productUrl,
+                force_restart: forceRestart
+            })
         });
         return this._handleResponse(response);
     }
@@ -48,6 +51,22 @@ class ReviewAPI {
     // 3. 获取结果
     static async getTaskResult(taskId) {
         const response = await fetch(`/api/v1/task/result/${taskId}`);
+        return this._handleResponse(response);
+    }
+    
+    // 4. 恢复任务 (已登录)
+    static async resumeCrawler(taskId) {
+        const response = await fetch(`/api/v1/task/resume/${taskId}`, {
+            method: 'POST'
+        });
+        return this._handleResponse(response);
+    }
+    
+    // 5. 停止任务
+    static async stopCrawler(taskId) {
+        const response = await fetch(`/api/v1/task/stop/${taskId}`, {
+            method: 'POST'
+        });
         return this._handleResponse(response);
     }
     

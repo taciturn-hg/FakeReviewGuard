@@ -9,6 +9,7 @@ class ReviewRequest(BaseModel):
 
 class ProductScoreRequest(BaseModel):
     product_url: str
+    force_restart: Optional[bool] = False
 
 class StatsResponse(BaseModel):
     overview: List[dict]

@@ -8,7 +8,8 @@ class CrawlerTask(Base):
 
     task_id = Column(Integer, primary_key=True, autoincrement=True, comment="任务ID")
     product_url = Column(String(500), nullable=False, comment="商品链接")
-    status = Column(Integer, default=0, comment="任务状态: 0-等待中, 1-进行中, 2-已完成, 3-失败")
+    status = Column(Integer, default=0, comment="任务状态: 0-等待中, 1-进行中, 2-已完成, 3-失败(含登录等待超时/数据库异常等), 4-等待手动操作(如登录), 5-已停止(用户主动停止)")
+    resume_signal = Column(Integer, default=0, comment="恢复信号: 0-暂停/无动作, 1-恢复执行(用于登录后的手动恢复), 2-停止爬虫(用户主动停止)")
     created_at = Column(DateTime, default=datetime.now, comment="创建时间")
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now, comment="更新时间")
 
@@ -16,7 +17,7 @@ class RawComment(Base):
     __tablename__ = "01_raw_comment"
 
     id = Column(Integer, primary_key=True, autoincrement=True, comment="原始评论ID")
-    task_id = Column(Integer, nullable=False, index=True, comment="关联的任务ID")
+    task_id = Column(Integer, ForeignKey("00_crawler_tasks.task_id"), nullable=False, index=True, comment="关联的任务ID")
     original_comment_id = Column(String(255), comment="平台原始评论ID")
     original_product_id = Column(String(255), comment="平台原始商品ID")
     product = Column(Text, nullable=False, comment="商品名称")
@@ -40,7 +41,7 @@ class CommentAnalysis(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True, comment="分析结果ID")
     raw_comment_id = Column(Integer, ForeignKey("01_raw_comment.id"), nullable=False, comment="关联的原始评论ID")
-    task_id = Column(Integer, nullable=False, comment="关联的任务ID")
+    task_id = Column(Integer, ForeignKey("00_crawler_tasks.task_id"), nullable=False, comment="关联的任务ID")
     extract = Column(String(500), comment="评论内容摘要")
     label = Column(String(50), comment="标签分类")
     is_fake = Column(Integer, default=0, comment="是否为虚假评论：0-真实，1-虚假，2-疑似")
@@ -70,7 +71,7 @@ class ProductStats(Base):
     __tablename__ = "03_product_stats"
 
     id = Column(Integer, primary_key=True, autoincrement=True, comment="统计结果ID")
-    task_id = Column(Integer, nullable=False, index=True, comment="关联的任务ID")
+    task_id = Column(Integer, ForeignKey("00_crawler_tasks.task_id"), nullable=False, index=True, comment="关联的任务ID")
     product = Column(String(200), index=True, comment="商品名称")
     product_spec = Column(Text, comment="商品规格")
     product_url = Column(String(500), comment="商品链接")
