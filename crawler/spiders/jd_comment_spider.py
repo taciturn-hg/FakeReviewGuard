@@ -304,7 +304,7 @@ class JDCommentSpider:
     def _update_task_status(self, status_code):
         """
         更新任务状态到数据库
-        :param status_code: 0-等待, 1-进行中, 2-已完成, 3-失败
+        :param status_code: 0-等待, 1-进行中, 2-已完成, 3-失败, 4-等待登录, 5-已停止
         """
         self.status = status_code
         if self.db:
