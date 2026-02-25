@@ -99,13 +99,13 @@ class JDCommentSpider:
                 if not self.db:
                     logger.error("数据库连接不可用，无法轮询 resume_signal，终止等待登录。")
                     self._update_task_status(3)  # 标记为失败
-                    return 2
+                    return 3
 
                 # 超时保护
                 if waited >= max_wait_seconds:
                     logger.error(f"等待登录超时({max_wait_seconds}秒)，终止爬虫任务。")
                     self._update_task_status(3)  # 标记为失败
-                    return 2
+                    return 3
 
                 # 1. 检查数据库 resume_signal 字段
                 try:
@@ -174,8 +174,11 @@ class JDCommentSpider:
                 
                 # 3. 最早的登录检测点：页面加载完成后立即检查
                 login_check = self._handle_login_redirect()
-                if login_check == 2:  # 停止爬虫：标记为已停止，避免和正常完成混淆
+                if login_check == 2:  # 用户主动停止
                     self._update_task_status(5)
+                    return
+                elif login_check == 3:  # 登录等待过程中的异常/超时
+                    self._update_task_status(3)
                     return
                 elif login_check == 1:  # 恢复登录，不需要 return，继续往下走
                     pass
@@ -209,6 +212,9 @@ class JDCommentSpider:
                 if login_check == 2:
                     self._update_task_status(5)
                     return
+                elif login_check == 3:
+                    self._update_task_status(3)
+                    return
                 elif login_check == 1:
                     pass  # 继续尝试打开评论
 
@@ -223,6 +229,9 @@ class JDCommentSpider:
                         if login_check == 2:
                             self._update_task_status(5)
                             return
+                        elif login_check == 3:
+                            self._update_task_status(3)
+                            return
                         elif login_check == 1:
                             pass  # 登录后继续等待弹窗
                             
@@ -235,6 +244,9 @@ class JDCommentSpider:
                 login_check = self._handle_login_redirect()
                 if login_check == 2:
                     self._update_task_status(5)
+                    return
+                elif login_check == 3:
+                    self._update_task_status(3)
                     return
                 elif login_check == 1:
                     # 如果登录后弹窗没开，可能需要重新尝试打开
