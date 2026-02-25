@@ -192,7 +192,19 @@ def train_fake_review_detector():
         
         # If more than 3, delete the oldest ones
         max_models = 3
-        if len(model_files) > max_models:
+        # 显式处理边界场景，便于维护者理解不同情况下的行为：
+        # 1. model_files 为空（例如目录中只有 fake_review_model_latest.pkl）
+        # 2. 历史模型数量少于等于 max_models 时应跳过清理
+        if not model_files:
+            # 无符合命名规范的历史模型文件，无需执行删除逻辑
+            logger.info("未发现符合命名规范的历史模型文件，跳过旧模型清理。")
+        elif len(model_files) <= max_models:
+            # 历史模型数量未超过上限，保持全部文件以便回溯
+            logger.info(
+                "历史模型文件数量未超过保留上限 "
+                f"({len(model_files)}/{max_models})，无需清理。"
+            )
+        else:
             files_to_delete = model_files[:-max_models]
             logger.info(f"发现超过 {max_models} 个历史模型，正在清理旧模型...")
             # 使用绝对路径确保后续目录校验可靠
@@ -226,7 +238,11 @@ def train_fake_review_detector():
                             logger.warning(f"检测到非模型目录中的向量化器文件，已跳过删除: {vec_abs_path}")
                         
                 except Exception as e:
-                    logger.warning(f"删除文件 {f_path} 失败: {e}")
+                    # 增强日志：记录实际删除目标的绝对路径和异常类型，便于排查
+                    logger.warning(f"删除文件 {os.path.abspath(f_path)} 失败: {type(e).__name__}: {e}")
+                    # 如果对应时间戳的向量化器路径已解析且文件存在，也提示可能未被清理
+                    if 'vec_abs_path' in locals() and os.path.exists(vec_abs_path):
+                        logger.warning(f"对应的向量化器文件也可能未删除: {vec_abs_path}")
             logger.info("旧模型清理完成。")
             
     except Exception as e:

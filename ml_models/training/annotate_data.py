@@ -254,7 +254,8 @@ def main():
             
             with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
                 future_to_index = {
-                    executor.submit(process_single_review, client, df.iloc[idx], idx, len(df), request_delay): idx 
+                    # 为每个任务创建独立的 OpenAI 客户端实例，避免在多线程中共享同一个 client
+                    executor.submit(process_single_review, OpenAI(), df.iloc[idx], idx, len(df), request_delay): idx
                     for idx in new_indices
                 }
                 
@@ -270,8 +271,12 @@ def main():
                             logger.info(f"进度: {completed_count}/{len(new_indices)} 新评论已标注")
                     except Exception as exc:
                         logger.error(f"Review {idx} generated an exception: {exc}")
-                        labels[idx] = 'Error'
-                        reasonings[idx] = str(exc)
+                        # 防御性检查：确保 idx 在 labels/reasonings 有效范围内，避免索引错位或越界
+                        if 0 <= idx < len(labels):
+                            labels[idx] = 'Error'
+                            reasonings[idx] = str(exc)
+                        else:
+                            logger.error(f"Invalid index {idx} for labels array (length: {len(labels)})")
 
         df['label'] = labels
         df['reasoning'] = reasonings
