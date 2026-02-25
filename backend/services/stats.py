@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, case, and_
 from backend.models.sql_models import CommentAnalysis, ProductStats, CrawlerTask
 from shared.utils.logger import logger
 
@@ -82,56 +82,73 @@ class StatsService:
         内部辅助方法：计算单个分组的统计数据
         :param spec: 规格名称。如果 is_overall 为 True，则忽略此参数计算全部。
         """
-        # 构建基础查询
-        base_query = db.query(CommentAnalysis).filter(CommentAnalysis.task_id == task_id)
-        
+        # 统一在一次聚合查询中计算总数、伪评论数、均值和情感分布，避免 N+1 查询
+        agg_query = db.query(
+            func.count(CommentAnalysis.id).label("total"),
+            func.sum(CommentAnalysis.is_fake).label("fake_sum"),
+            func.avg(CommentAnalysis.sentiment_score).label("sentiment_avg"),
+            func.avg(CommentAnalysis.confidence).label("confidence_avg"),
+            # 正面：sentiment_score > 0.2
+            func.sum(
+                case(
+                    (CommentAnalysis.sentiment_score > 0.2, 1),
+                    else_=0,
+                )
+            ).label("positive_count"),
+            # 负面：sentiment_score < -0.2
+            func.sum(
+                case(
+                    (CommentAnalysis.sentiment_score < -0.2, 1),
+                    else_=0,
+                )
+            ).label("negative_count"),
+            # 中性：-0.2 <= sentiment_score <= 0.2
+            func.sum(
+                case(
+                    (
+                        and_(
+                            CommentAnalysis.sentiment_score >= -0.2,
+                            CommentAnalysis.sentiment_score <= 0.2,
+                        ),
+                        1,
+                    ),
+                    else_=0,
+                )
+            ).label("neutral_count"),
+        ).filter(CommentAnalysis.task_id == task_id)
+
         # 如果不是总体统计，则增加规格过滤
         if not is_overall:
-            base_query = base_query.filter(CommentAnalysis.product_spec == spec)
+            agg_query = agg_query.filter(CommentAnalysis.product_spec == spec)
 
-        # 1. 查询基础聚合数据
-        stats = base_query.with_entities(
-            func.count(CommentAnalysis.id).label("total"),
-            func.sum(CommentAnalysis.is_fake).label("fake_sum"), 
-            func.avg(CommentAnalysis.sentiment_score).label("sentiment_avg"),
-            func.avg(CommentAnalysis.confidence).label("confidence_avg")
-        ).first()
-        
+        stats = agg_query.first()
+
         if not stats or stats.total == 0:
             return None
 
-        # 2. 计算正面/负面/中性评论数
-        # 复用 base_query 的过滤条件
-        positive_count = base_query.filter(CommentAnalysis.sentiment_score > 0.2).count()
-        negative_count = base_query.filter(CommentAnalysis.sentiment_score < -0.2).count()
-        neutral_count = base_query.filter(
-            CommentAnalysis.sentiment_score >= -0.2,
-            CommentAnalysis.sentiment_score <= 0.2
-        ).count()
-
-        # 3. 计算比率
-        total = stats.total or 0
+        total = int(stats.total or 0)
         fake_count = int(stats.fake_sum or 0)
+        sentiment_score = round(float(stats.sentiment_avg or 0), 2)
         confidence_val = float(stats.confidence_avg or 0)
-        
+
+        positive_count = int(stats.positive_count or 0)
+        negative_count = int(stats.negative_count or 0)
+        neutral_count = int(stats.neutral_count or 0)
+
         fake_ratio = 0.0
         confidence = 0.0
         positive_ratio = 0.0
         negative_ratio = 0.0
         neutral_ratio = 0.0
-        
+
         if total > 0:
             fake_ratio = round((fake_count / total) * 100, 2)
             confidence = round(confidence_val, 2)
             positive_ratio = round((positive_count / total) * 100, 2)
             negative_ratio = round((negative_count / total) * 100, 2)
             neutral_ratio = round((neutral_count / total) * 100, 2)
-            
-        sentiment_score = round(float(stats.sentiment_avg or 0), 2)
 
-        # 4. 创建 ProductStats 对象
-        # 如果是总体统计，product_spec 存为 None (或者 'ALL'，这里用 None 保持数据库语义)
-        # 如果是规格统计，product_spec 存为具体的 spec
+        # 如果是总体统计，product_spec 存为 None；如果是规格统计，存为具体的 spec
         db_spec_value = None if is_overall else spec
 
         return ProductStats(
@@ -147,5 +164,5 @@ class StatsService:
             neutral_reviews_count=neutral_count,
             positive_ratio=positive_ratio,
             negative_ratio=negative_ratio,
-            neutral_ratio=neutral_ratio
+            neutral_ratio=neutral_ratio,
         )
