@@ -260,7 +260,9 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // Update Sentiment Score
         if (sentimentScoreEl) {
-            const sentimentScore = data.sentiment_score !== undefined ? data.sentiment_score : 0;
+            const sentimentScore = (data.sentiment_score !== null && data.sentiment_score !== undefined)
+                ? data.sentiment_score
+                : 0;
             sentimentScoreEl.textContent = sentimentScore;
             
             // 根据分数改变颜色
