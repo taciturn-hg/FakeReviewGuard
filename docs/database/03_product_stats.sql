@@ -1,7 +1,7 @@
 CREATE TABLE `03_product_stats` (
     id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '统计结果ID',
     task_id BIGINT NOT NULL COMMENT '关联的任务ID',
-    product TEXT COMMENT '商品名称',
+    product VARCHAR(200) COMMENT '商品名称',
     product_spec TEXT COMMENT '商品规格',
     product_url VARCHAR(500) COMMENT '商品链接',
     

@@ -9,5 +9,5 @@ ALTER TABLE `02_comment_analysis`
 
 -- 03_product_stats
 ALTER TABLE `03_product_stats`
-  ADD INDEX `idx_product` (`product`),
+  ADD INDEX `idx_product` (`product`(191)),
   ADD INDEX `idx_created_at` (`created_at`);
