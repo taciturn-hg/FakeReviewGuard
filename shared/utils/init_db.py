@@ -54,12 +54,17 @@ def init_tables_from_sql():
                             first_line = statement.strip().splitlines()[0]
                             logger.info(f"   执行: {first_line[:50]}...") 
                         except Exception as e:
-                            # 严格模式：只忽略 "表已存在" 警告，其他所有错误立即抛出以触发回滚
-                            if "already exists" in str(e) or "Duplicate column name" in str(e):
-                                 logger.warning(f"   跳过 (已存在): {str(e).splitlines()[0]}")
+                            # 严格模式：只忽略“重复对象”类错误（表/列/索引已存在），其他错误立即抛出触发回滚
+                            err_str = str(e)
+                            if (
+                                "already exists" in err_str
+                                or "Duplicate column name" in err_str
+                                or "Duplicate key name" in err_str
+                            ):
+                                logger.warning(f"   跳过 (已存在): {err_str.splitlines()[0]}")
                             else:
-                                 logger.error(f"   致命错误: {e}")
-                                 raise e # 抛出异常，触发 engine.begin() 的自动回滚机制
+                                logger.error(f"   致命错误: {e}")
+                                raise e  # 抛出异常，触发 engine.begin() 的自动回滚机制
                 
                 logger.info(f"   文件 {sql_file} 执行完毕")
         

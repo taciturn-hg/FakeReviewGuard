@@ -26,14 +26,26 @@
     </div>
 
     <!-- 2. 商品信息区 (默认隐藏，选中商品后显示) -->
-    <div id="productInfo" class="alert alert-info d-none mb-4" role="alert">
-        <h4 class="alert-heading" id="infoProductName">--</h4>
-        <p class="mb-0">统计时间: <span id="infoDate">--</span></p>
-        <hr>
-        <p class="mb-0">
-            商品链接: 
-            <a href="#" id="infoProductUrl" target="_blank" class="fw-bold">点击跳转</a>
-        </p>
+    <div id="productInfo" class="card border-0 shadow-sm d-none mb-4" role="alert">
+        <div class="card-body">
+            <h4 class="card-title" id="infoProductName">--</h4>
+            <div class="row align-items-center">
+                <div class="col-md-6">
+                    <p class="mb-1 text-muted">统计时间: <span id="infoDate">--</span></p>
+                    <p class="mb-0">
+                        商品链接: 
+                        <a href="#" id="infoProductUrl" target="_blank" class="fw-bold text-decoration-none">点击跳转 <i class="fas fa-external-link-alt small"></i></a>
+                    </p>
+                </div>
+                <div class="col-md-6">
+                     <!-- 规格选择下拉框 -->
+                     <label for="dashboardSpecSelect" class="form-label small text-muted">商品规格:</label>
+                     <select id="dashboardSpecSelect" class="form-select form-select-sm" disabled>
+                        <option value="all" selected>全部规格</option>
+                    </select>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- 3. 图表区 -->

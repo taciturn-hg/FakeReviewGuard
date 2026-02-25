@@ -2,6 +2,7 @@ import time
 import random
 import sys
 import os
+import re
 
 # 添加项目根目录到 sys.path
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -283,7 +284,9 @@ class JDCommentSpider:
                 item = {
                     'task_id': self.task_id,
                     'original_comment_id': str(index.get('id', comment_info.get('commentId', ''))),
-                    'product': comment_info.get('productSpecifications', ''),
+                    'original_product_id': comment_info.get('productId', ''),
+                    'product': comment_info.get('productId', ''),
+                    'product_spec': re.sub(r"^已购\s*", "", comment_info.get("productSpecifications", "")),
                     'extract': comment_info.get('commentData', ''),
                     'score': int(comment_info.get('commentScore', 0)),
                     'source': '京东网页',
@@ -299,8 +302,8 @@ class JDCommentSpider:
                 self.db.execute(
                     text("""
                         INSERT INTO 01_raw_comment 
-                        (task_id, original_comment_id, product, extract, score, source, comment_time) 
-                        VALUES (:task_id, :original_comment_id, :product, :extract, :score, :source, :comment_time)
+                        (task_id, original_comment_id, original_product_id, product, product_spec, extract, score, source, comment_time) 
+                        VALUES (:task_id, :original_comment_id, :original_product_id, :product, :product_spec, :extract, :score, :source, :comment_time)
                     """),
                     comments_to_insert
                 )

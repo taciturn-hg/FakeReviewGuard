@@ -12,8 +12,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const sentimentScoreEl = document.getElementById('sentimentScore');
     const productNameEl = document.getElementById('productName');
     const copyLinkBtn = document.getElementById('copyLinkBtn');
+    const specSelect = document.getElementById('specSelect'); // 新增规格选择器
     let sentimentChartInstance = null;
     let lastResult = null;
+    let currentSpecsData = []; // 存储当前的规格数据列表
 
     // 获取当前主题配置
     const getThemeConfig = () => {
@@ -110,14 +112,12 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderSentimentChartWithConfig(positive, negative, neutral, theme) {
         const chartDom = document.getElementById('sentimentChart');
         if (!chartDom) return;
-        
-        if (sentimentChartInstance) {
-            sentimentChartInstance.dispose();
-        }
-        
-        sentimentChartInstance = echarts.init(chartDom);
+
         const option = {
             backgroundColor: 'transparent',
+            animation: true,
+            animationDuration: 1000,
+            animationEasing: 'cubicOut',
             tooltip: {
                 trigger: 'item',
                 backgroundColor: theme.chartTooltipBg,
@@ -164,13 +164,29 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             ]
         };
-        sentimentChartInstance.setOption(option);
-        
-        // 响应式调整
-        window.addEventListener('resize', () => {
-            sentimentChartInstance && sentimentChartInstance.resize();
+
+        const renderChart = () => {
+            if (!sentimentChartInstance) {
+                sentimentChartInstance = echarts.init(chartDom);
+            }
+
+            // 先 resize 再 setOption，避免首次布局未稳定导致动画跳过
+            sentimentChartInstance.resize();
+            sentimentChartInstance.setOption(option, true);
+        };
+
+        // 等两帧，确保容器尺寸稳定后再渲染
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                renderChart();
+            });
         });
     }
+
+    // 窗口缩放适配（只绑定一次，避免重复监听）
+    window.addEventListener('resize', () => {
+        sentimentChartInstance && sentimentChartInstance.resize();
+    });
 
     // 封装轮询逻辑
     async function pollTaskStatus(taskId) {
@@ -224,6 +240,125 @@ document.addEventListener('DOMContentLoaded', () => {
         );
     });
 
+    // 更新页面数据的辅助函数
+    function updatePageData(data) {
+        // Update data
+        trustScoreEl.textContent = data.trust_score;
+        
+        // Update Trust Score Color
+        if (data.trust_score >= 80) {
+            trustScoreEl.className = 'fw-bold text-success';
+        } else if (data.trust_score >= 60) {
+            trustScoreEl.className = 'fw-bold text-warning';
+        } else {
+            trustScoreEl.className = 'fw-bold text-danger';
+        }
+        
+        totalReviewsEl.textContent = data.total_reviews.toLocaleString();
+        fakeCountEl.textContent = data.fake_count.toLocaleString();
+        fakeRatioEl.textContent = `${(data.fake_ratio).toFixed(1)}%`;
+        
+        // Update Sentiment Score
+        if (sentimentScoreEl) {
+            const sentimentScore = (data.sentiment_score !== null && data.sentiment_score !== undefined)
+                ? data.sentiment_score
+                : 0;
+            sentimentScoreEl.textContent = sentimentScore;
+            
+            // 根据分数改变颜色
+            sentimentScoreEl.className = 'fw-bold'; // Reset classes
+            if (sentimentScore > 0.2) {
+                sentimentScoreEl.classList.add('text-success');
+            } else if (sentimentScore < -0.2) {
+                sentimentScoreEl.classList.add('text-danger');
+            } else {
+                sentimentScoreEl.classList.add('text-warning');
+            }
+        }
+
+        // Update Chart
+        renderSentimentChart(
+            data.positive_count, 
+            data.negative_count, 
+            data.neutral_count
+        );
+    }
+
+    // 监听规格选择变化
+    if (specSelect) {
+        specSelect.addEventListener('change', (e) => {
+            const selectedSpec = e.target.value;
+            
+            if (selectedSpec === 'all') {
+                // 恢复总体数据
+                if (lastResult) {
+                    updatePageData(lastResult);
+                }
+            } else {
+                // 查找对应规格的数据
+                const specData = currentSpecsData.find(s => s.product_spec === selectedSpec);
+                if (specData) {
+                    updatePageData(specData);
+                } else {
+                    console.warn('未找到对应规格的数据:', selectedSpec, currentSpecsData);
+                    alert('未找到该规格的统计数据，已恢复为总体数据。');
+                    if (lastResult) {
+                        updatePageData(lastResult);
+                    }
+                    // 重置下拉框为全部规格
+                    specSelect.value = 'all';
+                }
+            }
+        });
+    }
+
+    async function fetchAndDisplayResult(taskId) {
+        try {
+            const result = await ReviewAPI.getTaskResult(taskId);
+            lastResult = result;
+            currentSpecsData = result.specs || []; // 保存规格数据
+            
+            // Show result
+            productResult.classList.remove('d-none');
+            productResult.dataset.taskId = taskId; // 保存当前任务ID
+            
+            // 显示商品名称
+            productNameEl.textContent = result.product_name || "未知商品";
+            
+            // 显示 URL (截断)
+            const displayUrl = productIdInput.value.trim() || result.product_url || "";
+            resProductIdEl.textContent = displayUrl.length > 30 ? displayUrl.substring(0, 30) + '...' : displayUrl;
+            
+            // 初始化规格下拉框
+            if (specSelect) {
+                specSelect.innerHTML = '<option value="all" selected>全部规格</option>';
+                if (currentSpecsData.length > 0) {
+                    currentSpecsData.forEach(spec => {
+                        const option = document.createElement('option');
+                        option.value = spec.product_spec;
+                        // 截断过长的规格名称
+                        const displayName = spec.product_spec.length > 20 ? spec.product_spec.substring(0, 20) + '...' : spec.product_spec;
+                        option.textContent = displayName;
+                        specSelect.appendChild(option);
+                    });
+                    specSelect.disabled = false;
+                } else {
+                    specSelect.disabled = true;
+                }
+            }
+
+            // 初始显示总体数据
+            updatePageData(result);
+            
+        } catch (error) {
+            console.error("获取结果失败:", error);
+            alert("获取结果失败: " + error.message);
+        } finally {
+            searchBtn.disabled = false;
+            searchBtn.innerHTML = '<i class="fas fa-search me-2"></i>分析';
+        }
+    }
+
     searchBtn.addEventListener('click', async () => {
         const productUrl = productIdInput.value.trim();
         if (!productUrl) {
@@ -250,55 +385,11 @@ document.addEventListener('DOMContentLoaded', () => {
             await pollTaskStatus(taskId);
             
             // 3. 获取结果
-            const result = await ReviewAPI.getTaskResult(taskId);
-            lastResult = result;
-            
-            // Show result
-            productResult.classList.remove('d-none');
-            
-            // Update data
-            trustScoreEl.textContent = result.trust_score;
-            
-            // 显示商品名称
-            productNameEl.textContent = result.product_name || "未知商品";
-            
-            // 显示 URL (截断)
-            resProductIdEl.textContent = productUrl.length > 30 ? productUrl.substring(0, 30) + '...' : productUrl;
-            
-            totalReviewsEl.textContent = result.total_reviews.toLocaleString();
-            fakeCountEl.textContent = result.fake_count.toLocaleString();
-            fakeRatioEl.textContent = `${(result.fake_ratio).toFixed(1)}%`;
-            
-            // Update Sentiment Score
-            if (sentimentScoreEl) {
-                const sentimentScore = result.sentiment_score !== undefined ? result.sentiment_score : 0;
-                sentimentScoreEl.textContent = sentimentScore;
-                
-                if (sentimentScore > 0) {
-                    sentimentScoreEl.className = 'fw-bold text-success';
-                } else if (sentimentScore < 0) {
-                    sentimentScoreEl.className = 'fw-bold text-danger';
-                } else {
-                    sentimentScoreEl.className = 'fw-bold text-secondary';
-                }
-            }
-
-            // Update Trust Score Color
-            if (result.trust_score >= 80) {
-                trustScoreEl.className = 'fw-bold text-success';
-            } else if (result.trust_score >= 60) {
-                trustScoreEl.className = 'fw-bold text-warning';
-            } else {
-                trustScoreEl.className = 'fw-bold text-danger';
-            }
-            
-            // 渲染图表
-            renderSentimentChart(result.positive_count, result.negative_count, result.neutral_count);
+            await fetchAndDisplayResult(taskId);
 
         } catch (error) {
             console.error('Analysis failed:', error);
             alert(`分析失败: ${error.message}`);
-        } finally {
             searchBtn.disabled = false;
             searchBtn.innerHTML = '<i class="fas fa-search me-2"></i>分析';
         }

@@ -67,7 +67,8 @@ class LLMService:
                             "extract": item.extract[:500],
                             "confidence": round(prediction["confidence"], 4),
                             "sentiment_score": round(prediction["sentiment_score"], 4),
-                            "product": item.product
+                            "product": item.product,
+                            "product_spec": item.product_spec
                         }
                         batch_results.append(result_entry)
                     
