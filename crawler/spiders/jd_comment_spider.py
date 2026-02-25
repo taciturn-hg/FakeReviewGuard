@@ -149,12 +149,10 @@ class JDCommentSpider:
                 # print("Waiting for resume_signal...", end='\r')
             
             # 恢复任务状态为 1 (进行中)
+            # 这里只负责状态与信号管理，不再直接重新进入 start()
+            # 由外层调用方根据返回码决定是否以及如何继续后续流程，避免 re-entrant 调用
             self._update_task_status(1)
-            
-            # 恢复爬取流程
-            logger.info("重启爬取流程...")
-            self.page.get(self.product_url)
-            self.start()
+            logger.info("登录恢复完成，交由调用方继续后续爬取流程")
             return 1
         return 0
 
@@ -443,11 +441,16 @@ class JDCommentSpider:
                 if not comment_info or not comment_info.get('commentData'):
                     continue
 
+                # 保底机制：优先使用抓到的商品标题，如果为空则退回到 productId
+                product_title = (self.product_title or "").strip()
+                fallback_product_id = str(comment_info.get('productId', '') or '')
+                product_value = product_title or fallback_product_id
+
                 item = {
                     'task_id': self.task_id,
                     'original_comment_id': str(index.get('id', comment_info.get('commentId', ''))),
                     'original_product_id': comment_info.get('productId', ''),
-                    'product': self.product_title,
+                    'product': product_value,
                     'product_spec': re.sub(r"^已购\s*", "", comment_info.get("productSpecifications", "")),
                     'extract': comment_info.get('commentData', ''),
                     'score': int(comment_info.get('commentScore', 0)),

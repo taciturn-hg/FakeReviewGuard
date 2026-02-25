@@ -28,5 +28,5 @@ CREATE TABLE `03_product_stats` (
     KEY idx_created_at (created_at),
 
     -- 外键约束
-    FOREIGN KEY (task_id) REFERENCES 00_crawler_tasks(task_id) ON DELETE CASCADE
+    FOREIGN KEY (task_id) REFERENCES `00_crawler_tasks`(task_id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='商品评论分析统计结果表';

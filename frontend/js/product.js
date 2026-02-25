@@ -35,15 +35,23 @@ document.addEventListener('DOMContentLoaded', () => {
         useExistingBtn.addEventListener('click', async () => {
             if (!pendingTaskId) return;
             existTaskModal.hide();
-            await fetchAndDisplayResult(pendingTaskId);
+            const taskId = pendingTaskId;
+            // 使用后立即清理，避免影响后续逻辑
+            pendingTaskId = null;
+            pendingProductUrl = null;
+            await fetchAndDisplayResult(taskId);
         });
     }
 
     if (restartTaskBtn) {
         restartTaskBtn.addEventListener('click', async () => {
             if (!pendingProductUrl) return;
+            const url = pendingProductUrl;
+            // 在重新启动前清理 pending，避免 finally 分支长期认为处于待确认状态
+            pendingTaskId = null;
+            pendingProductUrl = null;
             existTaskModal.hide();
-            await startAnalysis(pendingProductUrl, true);
+            await startAnalysis(url, true);
         });
     }
 
