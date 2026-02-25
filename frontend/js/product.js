@@ -30,15 +30,39 @@ document.addEventListener('DOMContentLoaded', () => {
     let pendingTaskId = null; // 用于存储待确认的任务ID
     let pendingProductUrl = null; // 用于存储待确认的商品链接
 
+    // 监听模态框关闭事件 (无论通过按钮还是其他方式)
+    existTaskModalEl.addEventListener('hidden.bs.modal', () => {
+        // 如果是用户点击右上角关闭或点击遮罩层关闭，需要清理状态
+        // 注意：useExistingBtn 和 restartTaskBtn 点击时也会触发 hidden，
+        // 但那时 pending 变量可能还需要用到，或者已经被处理了。
+        // 这里我们可以简单地清理 pending 变量，因为如果点击了按钮，
+        // 按钮的处理逻辑应该在 hide() 之前或同步处理完。
+        // 为了安全起见，我们只在没有被处理的情况下恢复按钮状态。
+        
+        // 延迟一点清理，确保按钮点击事件先执行
+        setTimeout(() => {
+            if (pendingTaskId) {
+                // 如果到这里 pendingTaskId 还在，说明用户是取消/关闭了模态框，而不是点击了功能按钮
+                // (因为功能按钮点击后会调用 hide()，但我们在按钮点击处理中应该尽快消费 pending 变量)
+                // 修正：更好的方式是在按钮点击处理中将 pending 变量置空或标记为已处理。
+                // 但由于逻辑简单，我们可以在这里统一重置 UI。
+                pendingTaskId = null;
+                pendingProductUrl = null;
+                searchBtn.disabled = false;
+                searchBtn.innerHTML = '<i class="fas fa-search me-2"></i>分析';
+            }
+        }, 100);
+    });
+
     // 绑定模态框按钮事件
     if (useExistingBtn) {
         useExistingBtn.addEventListener('click', async () => {
             if (!pendingTaskId) return;
-            existTaskModal.hide();
-            const taskId = pendingTaskId;
-            // 使用后立即清理，避免影响后续逻辑
-            pendingTaskId = null;
+            const taskId = pendingTaskId; // 暂存
+            pendingTaskId = null; // 标记已处理
             pendingProductUrl = null;
+            
+            existTaskModal.hide();
             await fetchAndDisplayResult(taskId);
         });
     }
@@ -46,10 +70,10 @@ document.addEventListener('DOMContentLoaded', () => {
     if (restartTaskBtn) {
         restartTaskBtn.addEventListener('click', async () => {
             if (!pendingProductUrl) return;
-            const url = pendingProductUrl;
-            // 在重新启动前清理 pending，避免 finally 分支长期认为处于待确认状态
-            pendingTaskId = null;
+            const url = pendingProductUrl; // 暂存
+            pendingTaskId = null; // 标记已处理
             pendingProductUrl = null;
+            
             existTaskModal.hide();
             await startAnalysis(url, true);
         });

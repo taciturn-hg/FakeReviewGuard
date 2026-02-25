@@ -84,12 +84,15 @@ class JDCommentSpider:
                     self.db.commit()
                 except Exception as e:
                     logger.error(f"重置 resume_signal 失败: {e}")
+                    self.db.rollback()
             
             # 阻塞等待数据库 resume_signal 变为 1 或 2，但增加最大等待时长，避免无限挂起
             logger.info(f"等待用户登录... (当前任务状态: 4, 等待 resume_signal=1)")
 
             max_wait_seconds = 600  # 最长等待 10 分钟
             waited = 0
+            continuous_errors = 0
+            max_continuous_errors = 5
 
             while True:
                 time.sleep(2)  # 轮询间隔
@@ -106,6 +109,12 @@ class JDCommentSpider:
                     logger.error(f"等待登录超时({max_wait_seconds}秒)，终止爬虫任务。")
                     self._update_task_status(3)  # 标记为失败
                     return 3
+                
+                # 熔断保护
+                if continuous_errors >= max_continuous_errors:
+                    logger.error(f"数据库轮询连续失败 {continuous_errors} 次，终止爬虫任务。")
+                    self._update_task_status(3)  # 标记为失败
+                    return 3
 
                 # 1. 检查数据库 resume_signal 字段
                 try:
@@ -115,6 +124,9 @@ class JDCommentSpider:
                         text("SELECT resume_signal FROM 00_crawler_tasks WHERE task_id = :task_id"),
                         {"task_id": self.task_id}
                     ).fetchone()
+                    
+                    # 成功执行，重置错误计数
+                    continuous_errors = 0
 
                     if result:
                         signal_val = result[0]
@@ -136,6 +148,7 @@ class JDCommentSpider:
                                     self.db.commit()
                                 except Exception as e:
                                     logger.error(f"重置 resume_signal 失败: {e}")
+                                    self.db.rollback()
                                 continue  # 继续循环
                             else:
                                 logger.info("登录状态校验通过，准备恢复爬取...")
@@ -148,10 +161,13 @@ class JDCommentSpider:
                                     self.db.commit()
                                 except Exception as e:
                                     logger.error(f"恢复后重置 resume_signal 失败: {e}")
+                                    self.db.rollback()
                                 break  # 跳出循环，恢复爬虫
 
                 except Exception as e:
                     logger.warning(f"轮询 resume_signal 失败: {e}")
+                    self.db.rollback()
+                    continuous_errors += 1
 
             # 恢复任务状态为 1 (进行中)
             # 这里只负责状态与信号管理，不再直接重新进入 start()
@@ -462,6 +478,11 @@ class JDCommentSpider:
                 product_title = (self.product_title or "").strip()
                 fallback_product_id = str(comment_info.get('productId', '') or '')
                 product_value = product_title or fallback_product_id
+                
+                # 截断 product_value 以适应数据库字段 (VARCHAR(200))
+                # 考虑到中文和特殊字符，这里简单按字符数截断，保留前190个字符留有余地
+                if len(product_value) > 190:
+                    product_value = product_value[:190] + "..."
 
                 item = {
                     'task_id': self.task_id,

@@ -21,6 +21,10 @@ CREATE TABLE `02_comment_analysis` (
     -- 数据约束
     CONSTRAINT chk_is_fake CHECK (is_fake IN (0, 1, 2)),
     CONSTRAINT chk_confidence CHECK (confidence >= 0 AND confidence <= 1),
-    CONSTRAINT chk_sentiment CHECK (sentiment_score >= -1 AND sentiment_score <= 1)
+    CONSTRAINT chk_sentiment CHECK (sentiment_score >= -1 AND sentiment_score <= 1),
+    
+    -- 显式创建索引
+    INDEX idx_raw_comment_id (raw_comment_id),
+    INDEX idx_task_id (task_id)
     
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='评论分析结果表';

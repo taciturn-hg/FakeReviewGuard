@@ -59,7 +59,7 @@ class CrawlerService:
             0: 失败/报错
             1: 进行中
             2: 已完成
-            3: (未使用, 预留)
+            3: 分析完成
             4: 等待登录
         """
         if db_status == 2: return 2  # 完成
