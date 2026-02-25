@@ -8,7 +8,7 @@ class CrawlerTask(Base):
 
     task_id = Column(Integer, primary_key=True, autoincrement=True, comment="任务ID")
     product_url = Column(String(500), nullable=False, comment="商品链接")
-    status = Column(Integer, default=0, comment="任务状态: 0-等待中, 1-进行中, 2-已完成, 3-失败, 4-等待手动操作(如登录)")
+    status = Column(Integer, default=0, comment="任务状态: 0-等待中, 1-进行中, 2-已完成, 3-失败, 4-等待手动操作(如登录), 5-已停止")
     resume_signal = Column(Integer, default=0, comment="恢复信号: 0-无动作, 1-恢复执行, 2-停止爬虫")
     created_at = Column(DateTime, default=datetime.now, comment="创建时间")
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now, comment="更新时间")

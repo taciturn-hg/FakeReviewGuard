@@ -323,7 +323,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     clearInterval(interval);
                     reject(err);
                 }
-            }, 500); // 每 500 毫秒查一次
+            }, 2000); // 每 2000 毫秒查一次
         });
     }
 
