@@ -478,11 +478,6 @@ class JDCommentSpider:
                 product_title = (self.product_title or "").strip()
                 fallback_product_id = str(comment_info.get('productId', '') or '')
                 product_value = product_title or fallback_product_id
-                
-                # 截断 product_value 以适应数据库字段 (VARCHAR(200))
-                # 考虑到中文和特殊字符，这里简单按字符数截断，保留前190个字符留有余地
-                if len(product_value) > 190:
-                    product_value = product_value[:190] + "..."
 
                 item = {
                     'task_id': self.task_id,

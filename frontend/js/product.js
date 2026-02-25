@@ -122,7 +122,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 await ReviewAPI.stopCrawler(taskId);
                 
                 loginModal.hide();
-                isWaitingForLogin = false;
+                // 不要设置 isWaitingForLogin = false，防止轮询在状态未更新前再次弹出模态框
+                // isWaitingForLogin = false;
                 
                 // 重置按钮状态
                 stopCrawlerBtn.disabled = false;
