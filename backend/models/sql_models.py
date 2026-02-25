@@ -19,7 +19,9 @@ class RawComment(Base):
     id = Column(Integer, primary_key=True, autoincrement=True, comment="原始评论ID")
     task_id = Column(Integer, nullable=False, index=True, comment="关联的任务ID")
     original_comment_id = Column(String(255), comment="平台原始评论ID")
+    original_product_id = Column(String(255), comment="平台原始商品ID")
     product = Column(Text, nullable=False, comment="商品名称")
+    product_spec = Column(Text, comment="商品规格")
     extract = Column(Text, nullable=False, comment="评论内容")
     score = Column(Integer, nullable=False, comment="星级评分（1-5）")
     source = Column(String(50), nullable=False, comment="评论来源（如：京东网页 / 京东APP）")
@@ -46,6 +48,7 @@ class CommentAnalysis(Base):
     confidence = Column(DECIMAL(3, 2), comment="可信度")
     sentiment_score = Column(DECIMAL(3, 2), comment="情感分数")
     product = Column(String(200), comment="商品名称")
+    product_spec = Column(Text, comment="商品规格")
     created_at = Column(DateTime, default=datetime.now, comment="分析结果入库时间")
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now, comment="更新时间")
 
@@ -58,6 +61,8 @@ class CommentAnalysis(Base):
         CheckConstraint('sentiment_score >= -1 AND sentiment_score <= 1', name='chk_sentiment'),
         Index('idx_raw_comment_id', 'raw_comment_id'),
         Index('idx_task_id', 'task_id'),
+        # MySQL 对 TEXT 建索引需要前缀长度；191 适配 utf8mb4 + 旧 InnoDB 限制
+        Index('idx_task_id_product_spec', 'task_id', 'product_spec', mysql_length={'product_spec': 191}),
         Index('idx_created_at', 'created_at'),
         Index('idx_is_fake', 'is_fake'),
     )
@@ -68,6 +73,7 @@ class ProductStats(Base):
     id = Column(Integer, primary_key=True, autoincrement=True, comment="统计结果ID")
     task_id = Column(Integer, nullable=False, index=True, comment="关联的任务ID")
     product = Column(String(200), index=True, comment="商品名称")
+    product_spec = Column(Text, comment="商品规格")
     product_url = Column(String(500), comment="商品链接")
     
     total_reviews = Column(Integer, default=0, comment="总评论数")

@@ -83,9 +83,12 @@ def search_products(keyword: str, db: Session = Depends(get_db)):
     if not keyword:
         return []
     
-    # 模糊搜索 product 字段
+    # 模糊搜索 product 字段，且只搜索总体统计数据(product_spec is NULL)
     products = db.query(ProductStats.task_id, ProductStats.product, ProductStats.created_at)\
-        .filter(ProductStats.product.like(f"%{keyword}%"))\
+        .filter(
+            ProductStats.product.like(f"%{keyword}%"),
+            ProductStats.product_spec.is_(None)
+        )\
         .order_by(ProductStats.created_at.desc())\
         .limit(10)\
         .all()
@@ -102,23 +105,52 @@ def search_products(keyword: str, db: Session = Depends(get_db)):
 # 新增：获取大屏详情数据
 @router.get("/stats/detail/{task_id}")
 def get_stats_detail(task_id: int, db: Session = Depends(get_db)):
-    stats = db.query(ProductStats).filter(ProductStats.task_id == task_id).first()
-    if not stats:
+    # 1. 获取该任务的所有统计数据 (包括总体和各规格)
+    all_stats = db.query(ProductStats).filter(ProductStats.task_id == task_id).all()
+    
+    if not all_stats:
         raise HTTPException(status_code=404, detail="未找到该商品统计数据")
         
-    return {
-        "product_name": stats.product,
-        "product_url": stats.product_url,
-        "created_at": stats.created_at.strftime("%Y-%m-%d %H:%M:%S"),
-        "total_reviews": stats.total_reviews,
-        "fake_count": stats.fake_count,
-        "real_count": stats.total_reviews - stats.fake_count,
-        "trust_score": round(float(stats.confidence or 0) * 100, 1),
-        "sentiment_score": float(stats.sentiment_score or 0),
-        "positive_count": stats.positive_reviews_count,
-        "neutral_count": stats.neutral_reviews_count,
-        "negative_count": stats.negative_reviews_count
-    }
+    # 2. 分离总体数据和规格数据
+    # 总体数据：product_spec 为 None 的记录
+    # 规格数据：product_spec 不为 None 的记录
+    overall_stats = None
+    specs_list = []
+    
+    for stat in all_stats:
+        stat_dict = {
+            "product_name": stat.product,
+            "product_url": stat.product_url,
+            "product_spec": stat.product_spec, # 新增规格字段
+            "created_at": stat.created_at.strftime("%Y-%m-%d %H:%M:%S"),
+            "total_reviews": stat.total_reviews,
+            "fake_count": stat.fake_count,
+            "real_count": stat.total_reviews - stat.fake_count,
+            "fake_ratio": float(stat.fake_ratio or 0), # 确保有 fake_ratio
+            "trust_score": round(float(stat.confidence or 0) * 100, 1),
+            "sentiment_score": float(stat.sentiment_score or 0),
+            "positive_count": stat.positive_reviews_count,
+            "neutral_count": stat.neutral_reviews_count,
+            "negative_count": stat.negative_reviews_count
+        }
+        
+        if stat.product_spec is None:
+            overall_stats = stat_dict
+        else:
+            specs_list.append(stat_dict)
+            
+    # 如果没有找到 explicit 的总体数据 (兼容旧数据或逻辑异常)，尝试用第一个规格数据作为总体
+    if not overall_stats and specs_list:
+        overall_stats = specs_list[0]
+    elif not overall_stats:
+        # 此时既没有总体统计，也没有规格统计，认为数据异常
+        raise HTTPException(status_code=404, detail="统计数据异常")
+
+    # 3. 构造返回结构
+    # 将规格列表放入 specs 字段
+    overall_stats["specs"] = specs_list
+    
+    return overall_stats
 
 from shared.constants.messages import Messages
 from shared.constants.status_codes import BusinessCode
@@ -166,29 +198,56 @@ def get_result(task_id: int, db: Session = Depends(get_db)):
     """
     第三步：获取最终结果
     """
-    # 1. 尝试从数据库查询统计结果
-    stats = db.query(ProductStats).filter(ProductStats.task_id == task_id).first()
+    # 1. 尝试从数据库查询所有统计结果 (包括总体和各规格)
+    all_stats = db.query(ProductStats).filter(ProductStats.task_id == task_id).all()
     
     # 2. 如果没有统计结果 (可能是首次请求，或者统计逻辑未触发)，尝试实时计算
-    if not stats:
-        stats = StatsService.calculate_stats(task_id, db)
+    if not all_stats:
+        StatsService.calculate_stats(task_id, db)
+        # 重新查询
+        all_stats = db.query(ProductStats).filter(ProductStats.task_id == task_id).all()
     
-    if not stats:
+    if not all_stats:
         # 如果计算后还是没有 (比如该任务根本没有评论数据)
         raise HTTPException(status_code=404, detail=Messages.DATA_NOT_FOUND)
     
-    return {
-        "task_id": task_id,
-        "trust_score": round(float(stats.confidence or 0) * 100, 1),
-        "total_reviews": stats.total_reviews,
-        "fake_ratio": stats.fake_ratio,
-        "fake_count": stats.fake_count,
-        "product_name": stats.product,
-        "sentiment_score": float(stats.sentiment_score or 0),
-        "positive_count": stats.positive_reviews_count,
-        "negative_count": stats.negative_reviews_count,
-        "neutral_count": stats.neutral_reviews_count
-    }
+    # 3. 分离总体数据和规格数据
+    overall_stats = None
+    specs_list = []
+    
+    for stat in all_stats:
+        stat_dict = {
+            "product_name": stat.product,
+            "product_url": stat.product_url,
+            "product_spec": stat.product_spec,
+            "created_at": stat.created_at.strftime("%Y-%m-%d %H:%M:%S"),
+            "trust_score": round(float(stat.confidence or 0) * 100, 1),
+            "total_reviews": stat.total_reviews,
+            "fake_ratio": float(stat.fake_ratio or 0),
+            "fake_count": stat.fake_count,
+            "sentiment_score": float(stat.sentiment_score or 0),
+            "positive_count": stat.positive_reviews_count,
+            "negative_count": stat.negative_reviews_count,
+            "neutral_count": stat.neutral_reviews_count
+        }
+        
+        if stat.product_spec is None:
+            overall_stats = stat_dict
+        else:
+            specs_list.append(stat_dict)
+            
+    # 如果没有找到 explicit 的总体数据，尝试用第一个数据作为总体
+    if not overall_stats and specs_list:
+        overall_stats = specs_list[0]
+        
+    if not overall_stats:
+         raise HTTPException(status_code=404, detail="统计数据异常")
+
+    # 4. 构造返回结构
+    overall_stats["task_id"] = task_id
+    overall_stats["specs"] = specs_list
+    
+    return overall_stats
 
 @router.get("/stats", response_model=None)
 async def get_stats(product_id: Optional[str] = None, chart_type: str = "all"):
