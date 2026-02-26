@@ -17,6 +17,127 @@ document.addEventListener('DOMContentLoaded', () => {
     let lastResult = null;
     let currentSpecsData = []; // 存储当前的规格数据列表
 
+    // 模态框元素
+    const loginModalEl = document.getElementById('loginModal');
+    const loginModal = new bootstrap.Modal(loginModalEl, { backdrop: 'static', keyboard: false });
+    const existTaskModalEl = document.getElementById('existTaskModal');
+    const existTaskModal = new bootstrap.Modal(existTaskModalEl, { backdrop: 'static', keyboard: false });
+    const loggedInBtn = document.getElementById('loggedInBtn');
+    const stopCrawlerBtn = document.getElementById('stopCrawlerBtn');
+    const useExistingBtn = document.getElementById('useExistingBtn');
+    const restartTaskBtn = document.getElementById('restartTaskBtn');
+    let isWaitingForLogin = false;
+    let pendingTaskId = null; // 用于存储待确认的任务ID
+    let pendingProductUrl = null; // 用于存储待确认的商品链接
+
+    // 监听模态框关闭事件 (无论通过按钮还是其他方式)
+    existTaskModalEl.addEventListener('hidden.bs.modal', () => {
+        // 如果是用户点击右上角关闭或点击遮罩层关闭，需要清理状态
+        // 注意：useExistingBtn 和 restartTaskBtn 点击时也会触发 hidden，
+        // 但那时 pending 变量可能还需要用到，或者已经被处理了。
+        // 这里我们可以简单地清理 pending 变量，因为如果点击了按钮，
+        // 按钮的处理逻辑应该在 hide() 之前或同步处理完。
+        // 为了安全起见，我们只在没有被处理的情况下恢复按钮状态。
+        
+        // 延迟一点清理，确保按钮点击事件先执行
+        setTimeout(() => {
+            if (pendingTaskId) {
+                // 如果到这里 pendingTaskId 还在，说明用户是取消/关闭了模态框，而不是点击了功能按钮
+                // (因为功能按钮点击后会调用 hide()，但我们在按钮点击处理中应该尽快消费 pending 变量)
+                // 修正：更好的方式是在按钮点击处理中将 pending 变量置空或标记为已处理。
+                // 但由于逻辑简单，我们可以在这里统一重置 UI。
+                pendingTaskId = null;
+                pendingProductUrl = null;
+                searchBtn.disabled = false;
+                searchBtn.innerHTML = '<i class="fas fa-search me-2"></i>分析';
+            }
+        }, 100);
+    });
+
+    // 绑定模态框按钮事件
+    if (useExistingBtn) {
+        useExistingBtn.addEventListener('click', async () => {
+            if (!pendingTaskId) return;
+            const taskId = pendingTaskId; // 暂存
+            pendingTaskId = null; // 标记已处理
+            pendingProductUrl = null;
+            
+            existTaskModal.hide();
+            await fetchAndDisplayResult(taskId);
+        });
+    }
+
+    if (restartTaskBtn) {
+        restartTaskBtn.addEventListener('click', async () => {
+            if (!pendingProductUrl) return;
+            const url = pendingProductUrl; // 暂存
+            pendingTaskId = null; // 标记已处理
+            pendingProductUrl = null;
+            
+            existTaskModal.hide();
+            await startAnalysis(url, true);
+        });
+    }
+
+    if (loggedInBtn) {
+        loggedInBtn.addEventListener('click', async () => {
+            const taskId = parseInt(productResult.dataset.taskId);
+            if (!taskId) return;
+            
+            try {
+                loggedInBtn.disabled = true;
+                loggedInBtn.textContent = '提交中...';
+                
+                await ReviewAPI.resumeCrawler(taskId);
+                
+                loginModal.hide();
+                isWaitingForLogin = false;
+                
+                // 重置按钮状态
+                loggedInBtn.disabled = false;
+                loggedInBtn.textContent = '我已登录';
+                
+            } catch (error) {
+                console.error("恢复任务失败:", error);
+                alert("恢复任务失败，请稍后重试: " + error.message);
+                loggedInBtn.disabled = false;
+                loggedInBtn.textContent = '我已登录';
+            }
+        });
+    }
+
+    if (stopCrawlerBtn) {
+        stopCrawlerBtn.addEventListener('click', async () => {
+            const taskId = parseInt(productResult.dataset.taskId);
+            if (!taskId) return;
+            
+            if (!confirm('确定要停止爬虫任务吗？')) {
+                return;
+            }
+
+            try {
+                stopCrawlerBtn.disabled = true;
+                stopCrawlerBtn.textContent = '停止中...';
+                
+                await ReviewAPI.stopCrawler(taskId);
+                
+                loginModal.hide();
+                // 不要设置 isWaitingForLogin = false，防止轮询在状态未更新前再次弹出模态框
+                // isWaitingForLogin = false;
+                
+                // 重置按钮状态
+                stopCrawlerBtn.disabled = false;
+                stopCrawlerBtn.textContent = '停止爬虫';
+                
+            } catch (error) {
+                console.error("停止任务失败:", error);
+                alert("停止任务失败，请稍后重试: " + error.message);
+                stopCrawlerBtn.disabled = false;
+                stopCrawlerBtn.textContent = '停止爬虫';
+            }
+        });
+    }
+
     // 获取当前主题配置
     const getThemeConfig = () => {
         const styles = getComputedStyle(document.documentElement);
@@ -199,13 +320,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 try {
                     const statusRes = await ReviewAPI.checkStatus(taskId);
                     
-                    // 状态: 0-失败, 1-爬虫中, 2-分析中, 3-完成
+                    // 状态: 0-失败, 1-爬虫中, 2-分析中, 3-完成, 4-等待登录
                     if (statusRes.status === 0) {
                         clearInterval(interval);
                         reject(new Error(statusRes.message || '任务失败'));
                     } else if (statusRes.status === 3) {
                         clearInterval(interval);
                         resolve(statusRes);
+                    } else if (statusRes.status === 4) {
+                        searchBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>等待用户登录...';
+                        if (!isWaitingForLogin) {
+                            isWaitingForLogin = true;
+                            productResult.dataset.taskId = taskId;
+                            loginModal.show();
+                        }
                     } else if (statusRes.status === 1) {
                         searchBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>正在抓取评论数据...';
                     } else if (statusRes.status === 2) {
@@ -220,7 +348,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     clearInterval(interval);
                     reject(err);
                 }
-            }, 2000); // 每 2 秒查一次
+            }, 2000); // 每 2000 毫秒查一次
         });
     }
 
@@ -359,8 +487,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    searchBtn.addEventListener('click', async () => {
-        const productUrl = productIdInput.value.trim();
+    async function startAnalysis(productUrl, forceRestart = false) {
+        // 基础校验
         if (!productUrl) {
             alert('请输入商品链接');
             return;
@@ -377,21 +505,41 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
             // 1. 启动任务
-            const startRes = await ReviewAPI.startTask(productUrl);
+            const startRes = await ReviewAPI.startTask(productUrl, forceRestart);
+            
+            // 检查是否已存在
+            if (startRes.status === 'exists') {
+                pendingTaskId = startRes.task_id;
+                pendingProductUrl = productUrl;
+                existTaskModal.show();
+                searchBtn.disabled = false;
+                searchBtn.innerHTML = '<i class="fas fa-search me-2"></i>分析';
+                return;
+            }
+            
             const taskId = startRes.task_id;
             console.log(`Task started: ${taskId}`);
             
             // 2. 轮询状态
             await pollTaskStatus(taskId);
             
-            // 3. 获取结果
+            // 3. 获取并显示结果
             await fetchAndDisplayResult(taskId);
-
+            
         } catch (error) {
             console.error('Analysis failed:', error);
             alert(`分析失败: ${error.message}`);
-            searchBtn.disabled = false;
-            searchBtn.innerHTML = '<i class="fas fa-search me-2"></i>分析';
+        } finally {
+            if (!pendingTaskId) { // 如果不是等待确认状态，则恢复按钮
+                searchBtn.disabled = false;
+                searchBtn.innerHTML = '<i class="fas fa-search me-2"></i>分析';
+            }
         }
+    }
+
+    // 统一的按钮点击事件，调用 startAnalysis
+    searchBtn.addEventListener('click', async () => {
+        const productUrl = productIdInput.value.trim();
+        await startAnalysis(productUrl);
     });
 });

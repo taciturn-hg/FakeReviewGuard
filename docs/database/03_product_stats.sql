@@ -22,9 +22,10 @@ CREATE TABLE `03_product_stats` (
     
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '统计时间',
     
-    -- 索引
-    KEY idx_task_id (task_id),
-    KEY idx_product (product),
-    KEY idx_created_at (created_at)
-
+    -- 外键约束
+    CONSTRAINT fk_product_stats_task FOREIGN KEY (task_id)
+        REFERENCES `00_crawler_tasks`(task_id) ON DELETE CASCADE,
+        
+    -- 显式创建索引
+    INDEX idx_task_id (task_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='商品评论分析统计结果表';

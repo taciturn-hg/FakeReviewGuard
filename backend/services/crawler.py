@@ -44,30 +44,50 @@ class CrawlerService:
         return task_id
 
     @staticmethod
+    def _map_db_status_to_api_status(db_status: int) -> int:
+        """
+        将数据库状态码映射为 API 状态码
+        DB Status:
+            0: 等待中
+            1: 进行中
+            2: 已完成
+            3: 失败
+            4: 等待登录
+            5: 已停止
+        
+        API Status (前端约定):
+            0: 失败/报错
+            1: 进行中
+            2: 已完成
+            3: 分析完成
+            4: 等待登录
+        """
+        if db_status == 2: return 2  # 完成
+        if db_status == 3: return 0  # 失败
+        if db_status == 4: return 4  # 等待登录
+        if db_status == 5: return 0  # 停止视为失败/结束
+        return 1  # 0(等待) 和 1(进行) 都映射为进行中
+
+    @staticmethod
     def check_task_status(task_id: int):
         """
         查询任务状态
-        :return: 0-失败/报错, 1-进行中, 2-已完成
+        :return: API 状态码
         """
         # 优先查内存中的活跃爬虫
         spider = running_spiders.get(task_id)
         if spider:
-            return spider.get_status()
+            # 内存中的 spider.status 通常也是 DB 状态码 (因为 spider 会更新 DB)
+            # 但为了安全起见，这里也应用映射
+            return CrawlerService._map_db_status_to_api_status(spider.get_status())
             
         # 内存查不到，查数据库 (可能因为重启丢失了内存状态)
-        # 注意：这里我们无法直接访问 db session，因为这个方法是静态的且没有传 db
-        # 简易方案：临时创建一个 session
         db = SessionLocal()
         try:
             # 查询数据库中的任务状态
             task = db.query(CrawlerTask).filter(CrawlerTask.task_id == task_id).first()
             if task:
-                # 映射数据库状态到前端状态码
-                # DB: 0-等待, 1-进行, 2-完成, 3-失败
-                # API: 0-失败, 1-进行, 2-完成
-                if task.status == 2: return 2
-                if task.status == 3: return 0
-                return 1 # 等待或进行中都算进行中
+                return CrawlerService._map_db_status_to_api_status(task.status)
         except Exception:
             pass
         finally:
