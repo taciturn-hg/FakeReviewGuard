@@ -170,6 +170,84 @@ def train_fake_review_detector():
     logger.info(f"向量化器已保存至 {vectorizer_path}")
     logger.info(f"最新模型也已保存至 {latest_model_path}")
 
+    # Clean up old models (keep only last 3 timestamped versions)
+    # Filter for timestamped model files (e.g., fake_review_model_20240101_120000.pkl)
+    # Excluding 'latest' and potentially other files
+    try:
+        model_files = []
+        for f in os.listdir(models_dir):
+            # 精确排除真正的最新模型文件，避免对子串 "latest" 的模糊匹配导致误排除备份文件
+            if f.startswith('fake_review_model_') and f.endswith('.pkl') and f != 'fake_review_model_latest.pkl':
+                model_files.append(os.path.join(models_dir, f))
+        
+        # 按文件名中的时间戳排序（最早的在前），而不是按文件修改时间
+        # 这样可以严格按照模型训练时刻来判断新旧，避免由于文件被“触碰”导致修改时间变化而误删最新模型
+        def _extract_model_timestamp(path: str) -> str:
+            base_name = os.path.basename(path)
+            # 依赖命名规范：fake_review_model_YYYYMMDD_HHMMSS.pkl
+            # 去掉统一前缀和后缀，得到时间戳，例如 "20240101_120000"
+            return base_name.replace('fake_review_model_', '').replace('.pkl', '')
+        
+        model_files.sort(key=_extract_model_timestamp)
+        
+        # If more than 3, delete the oldest ones
+        max_models = 3
+        # 显式处理边界场景，便于维护者理解不同情况下的行为：
+        # 1. model_files 为空（例如目录中只有 fake_review_model_latest.pkl）
+        # 2. 历史模型数量少于等于 max_models 时应跳过清理
+        if not model_files:
+            # 无符合命名规范的历史模型文件，无需执行删除逻辑
+            logger.info("未发现符合命名规范的历史模型文件，跳过旧模型清理。")
+        elif len(model_files) <= max_models:
+            # 历史模型数量未超过上限，保持全部文件以便回溯
+            logger.info(
+                "历史模型文件数量未超过保留上限 "
+                f"({len(model_files)}/{max_models})，无需清理。"
+            )
+        else:
+            files_to_delete = model_files[:-max_models]
+            logger.info(f"发现超过 {max_models} 个历史模型，正在清理旧模型...")
+            # 使用绝对路径确保后续目录校验可靠
+            models_dir_abs = os.path.abspath(models_dir)
+            for f_path in files_to_delete:
+                try:
+                    # 安全校验：仅允许删除位于 models_dir 下的文件
+                    f_abs_path = os.path.abspath(f_path)
+                    f_dir = os.path.dirname(f_abs_path)
+                    if f_dir != models_dir_abs:
+                        logger.warning(f"跳过删除非模型目录文件: {f_abs_path}")
+                        continue
+
+                    os.remove(f_abs_path)
+                    logger.info(f"已删除旧模型文件: {f_abs_path}")
+                    
+                    # Also try to delete corresponding vectorizer
+                    # Assuming naming convention: fake_review_model_TIMESTAMP.pkl -> tfidf_vectorizer_TIMESTAMP.pkl
+                    base_name = os.path.basename(f_abs_path)
+                    timestamp_part = base_name.replace('fake_review_model_', '').replace('.pkl', '')
+                    vec_name = f'tfidf_vectorizer_{timestamp_part}.pkl'
+                    vec_path = os.path.join(models_dir, vec_name)
+                    vec_abs_path = os.path.abspath(vec_path)
+                    vec_dir = os.path.dirname(vec_abs_path)
+                    
+                    if os.path.exists(vec_abs_path):
+                        if vec_dir == models_dir_abs:
+                            os.remove(vec_abs_path)
+                            logger.info(f"已删除旧向量化器文件: {vec_abs_path}")
+                        else:
+                            logger.warning(f"检测到非模型目录中的向量化器文件，已跳过删除: {vec_abs_path}")
+                        
+                except Exception as e:
+                    # 增强日志：记录实际删除目标的绝对路径和异常类型，便于排查
+                    logger.warning(f"删除文件 {os.path.abspath(f_path)} 失败: {type(e).__name__}: {e}")
+                    # 如果对应时间戳的向量化器路径已解析且文件存在，也提示可能未被清理
+                    if 'vec_abs_path' in locals() and os.path.exists(vec_abs_path):
+                        logger.warning(f"对应的向量化器文件也可能未删除: {vec_abs_path}")
+            logger.info("旧模型清理完成。")
+            
+    except Exception as e:
+        logger.warning(f"清理旧模型时发生错误: {e}")
+
     # Inference Example
     logger.info("--- 推理测试 (中文) ---")
     test_review = "这个手机真是太好用了！我买了10个。强烈推荐！"

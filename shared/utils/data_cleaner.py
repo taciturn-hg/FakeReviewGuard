@@ -60,4 +60,4 @@ def load_and_sample(sample_size=2000, output_file='sample_reviews_for_annotation
     print(sample_df.head())
 
 if __name__ == "__main__":
-    load_and_sample()
+    load_and_sample(sample_size=3000)

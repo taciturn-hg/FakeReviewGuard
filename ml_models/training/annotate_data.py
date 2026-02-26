@@ -3,6 +3,7 @@ import json
 import os
 import time
 import sys
+import concurrent.futures
 from openai import OpenAI
 from dotenv import load_dotenv
 
@@ -129,6 +130,27 @@ def annotate_review(client, text, score, product):
         logger.error(f"标注错误: {e}")
         return {"label": "Error", "reasoning": str(e)}
 
+def process_single_review(client, row, index, total, request_delay):
+    # 处理单条评论标注逻辑的辅助函数
+    try:
+        # 基于 request_delay 做简单的节流控制，避免并发下瞬时 QPS 过高
+        # 仅当 request_delay 为正数时才进行休眠，不影响默认性能
+        if isinstance(request_delay, (int, float)) and request_delay > 0:
+            time.sleep(request_delay)
+        result = annotate_review(client, row['extract'], row['score'], row['product'])
+        return {
+            'index': index,
+            'label': result.get('label', 'Unknown'),
+            'reasoning': result.get('reasoning', 'No reasoning')
+        }
+    except Exception as e:
+        logger.error(f"Error processing review {index}: {e}")
+        return {
+            'index': index,
+            'label': 'Error',
+            'reasoning': str(e)
+        }
+
 def main():
     # 使用绝对路径以确保在任何目录运行都能找到文件
     base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -140,6 +162,39 @@ def main():
     if not os.path.exists(input_file):
         logger.error(f"未找到文件 {input_file}。请先运行 shared/utils/data_cleaner.py 生成 'sample_reviews_for_annotation.csv'。")
         return
+
+    # Load existing labels if available to avoid re-annotating
+    existing_labels_map = {}
+    if os.path.exists(output_file):
+        try:
+            existing_df = pd.read_csv(output_file)
+            # Create a lookup key based on extract and product (or just extract if unique enough)
+            # Using tuple of (extract, product) as key
+            # 注意：这里需要与下方新样本构建 key 的 NaN 归一化规则保持一致，
+            # 避免将 NaN 直接转换为字符串 "nan" 导致多条缺失值记录 key 冲突。
+            for idx, row in existing_df.iterrows():
+                raw_extract = row.get('extract')
+                raw_product = row.get('product')
+
+                # 统一对 NaN / 空字符串做归一化处理，防止 key 碰撞
+                if pd.isna(raw_extract) or str(raw_extract).strip() == '':
+                    extract_key = f"__NA_extract_{idx}__"
+                else:
+                    extract_key = str(raw_extract).strip()
+
+                if pd.isna(raw_product) or str(raw_product).strip() == '':
+                    product_key = f"__NA_product_{idx}__"
+                else:
+                    product_key = str(raw_product).strip()
+
+                key = (extract_key, product_key)
+                existing_labels_map[key] = {
+                    'label': row.get('label'),
+                    'reasoning': row.get('reasoning')
+                }
+            logger.info(f"已加载 {len(existing_labels_map)} 条现有标注数据，将跳过重复项。")
+        except Exception as e:
+            logger.warning(f"读取现有标注文件失败，将重新标注所有数据: {e}")
 
     df = pd.read_csv(input_file)
     client = get_deepseek_client()
@@ -153,26 +208,79 @@ def main():
         df['label'] = df['extract'].apply(lambda x: 'Fake' if len(str(x)) < 30 or 'great' in str(x).lower() else 'Real')
         df['reasoning'] = "Mock reasoning based on length/keywords."
     else:
-        logger.info("开始使用 DeepSeek 进行标注...")
-        labels = []
-        reasonings = []
+        logger.info("开始使用 DeepSeek 进行标注 (并发模式)...")
         
-        # Optional override from settings:
-        # - Name: deepseek_request_delay_seconds
-        # - Purpose: control delay between DeepSeek API calls for rate limiting
-        # - Unit: seconds
-        # - Default: 0.5 (preserves current behavior if not explicitly configured)
-        request_delay = getattr(settings, "deepseek_request_delay_seconds", 0.5)
+        # Initialize lists with placeholders to maintain order or use index mapping
+        labels = [''] * len(df)
+        reasonings = [''] * len(df)
         
+        # Prepare tasks
+        new_indices = []
+        
+        # Identify which rows need annotation
         for index, row in df.iterrows():
-            logger.info(f"正在标注评论 {index + 1}/{len(df)}...")
-            result = annotate_review(client, row['extract'], row['score'], row['product'])
-            labels.append(result.get('label', 'Unknown'))
-            reasonings.append(result.get('reasoning', 'No reasoning'))
-            time.sleep(request_delay)  # Rate limiting
+            # 使用 pandas.isna 判断缺失值，显式区分 NaN 与真实字符串内容
+            raw_extract = row['extract']
+            raw_product = row['product']
+
+            # 对缺失值使用稳定的显式占位符，而不是依赖行索引，避免跨运行键不一致和字符串撞名
+            if pd.isna(raw_extract):
+                extract_val = "<NULL>"
+            else:
+                extract_val = str(raw_extract).strip()
+
+            if pd.isna(raw_product):
+                product_val = "<NULL>"
+            else:
+                product_val = str(raw_product).strip()
+
+            # 组合后的键在同一内容下多次运行保持稳定，且不会与 "__NA_EXTRACT_0__" 等保留字符串发生碰撞
+            key = (extract_val, product_val)
             
+            if key in existing_labels_map:
+                cached = existing_labels_map[key]
+                labels[index] = cached['label']
+                reasonings[index] = cached['reasoning']
+            else:
+                new_indices.append(index)
+
+        logger.info(f"需要新标注 {len(new_indices)} 条评论，复用 {len(df) - len(new_indices)} 条。")
+
+        if new_indices:
+            # 默认请求延迟设置为 0.3 秒，以在无额外限流的情况下降低触发 DeepSeek 速率限制风险
+            request_delay = getattr(settings, "deepseek_request_delay_seconds", 0.3)
+            # 使用可配置的并发线程数，默认值为 4，以控制整体 QPS，避免触发 DeepSeek API 速率限制
+            max_workers = getattr(settings, "max_annotation_workers", 4)
+            
+            with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+                future_to_index = {
+                    # 为每个任务通过 get_deepseek_client() 创建独立的 DeepSeek 客户端实例，避免在多线程中共享同一个 client
+                    executor.submit(process_single_review, get_deepseek_client(), df.iloc[idx], idx, len(df), request_delay): idx
+                    for idx in new_indices
+                }
+                
+                completed_count = 0
+                for future in concurrent.futures.as_completed(future_to_index):
+                    idx = future_to_index[future]
+                    try:
+                        res = future.result()
+                        labels[idx] = res['label']
+                        reasonings[idx] = res['reasoning']
+                        completed_count += 1
+                        if completed_count % 10 == 0:
+                            logger.info(f"进度: {completed_count}/{len(new_indices)} 新评论已标注")
+                    except Exception as exc:
+                        logger.error(f"Review {idx} generated an exception: {exc}")
+                        # 防御性检查：确保 idx 在 labels/reasonings 有效范围内，避免索引错位或越界
+                        if 0 <= idx < len(labels):
+                            labels[idx] = 'Error'
+                            reasonings[idx] = str(exc)
+                        else:
+                            logger.error(f"Invalid index {idx} for labels array (length: {len(labels)})")
+
         df['label'] = labels
         df['reasoning'] = reasonings
+        logger.info(f"标注过程结束。")
 
     # 过滤掉标注失败的数据
     valid_df = df[df['label'] != 'Error']
