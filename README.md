@@ -38,6 +38,18 @@ FakeReviewGuard 是一款专为电商平台设计的智能评论可信度分析�
 ## 🚀 快速开始
 
 ### 环境配置
+
+#### 1. 数据库配置
+```bash
+# 复制环境变量模板
+cp .env.example .env
+
+# 编辑 .env 文件，配置数据库连接
+# 格式：mysql+pymysql://user:password@host:port/dbname
+# 示例：mysql+pymysql://root:123456@localhost:3306/fake_review_guard
+```
+
+#### 2. 创建虚拟环境
 ```bash
 # 创建虚拟环境
 python -3.10 venv .venv
@@ -45,10 +57,10 @@ source venv/bin/activate  # Linux/Mac
 .venv\Scripts\activate     # Windows
 
 # 安装依赖
-pip install -r requirements.txt
+python -m pip install -r requirements.txt
 ```
 
-### 数据库初始化
+#### 3. 数据库初始化
 ```bash
 cd backend
 python init_db.py
